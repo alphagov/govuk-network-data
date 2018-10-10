@@ -6,6 +6,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+.python-version
 .Python
 env/
 build/
@@ -77,7 +78,10 @@ target/
 
 # exclude data from source control by default
 # we don't exclude to show data folder structure
-# /data/
+#data/
 
 # Mac OS-specific storage files
 .DS_Store
+
+# exclude BQ key
+key/*
