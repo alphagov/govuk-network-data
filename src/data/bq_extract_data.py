@@ -3,6 +3,7 @@ import datetime
 import fnmatch
 import logging.config
 import os
+import traceback
 
 import pandas as pd
 
@@ -27,28 +28,38 @@ def change_timestamp(x, date, dialect):
         return x.replace("TIME_STAMP", change)
 
 
-def looped_query(query_from_file, date_range, exclude, pid, k_path, destination_dir, file_names, dialect):
+def looped_query(query_from_file, date_range, exclude, pid, k_path, destination_dir, file_names, dialect="legacy"):
     runs = len(date_range) - len(exclude)
+
+    logging.info(query_from_file)
+
     for i, date in enumerate(date_range):
         logger.info("RUN {} OUT OF {}".format(str(i + 1), runs))
         if date not in exclude:
-
+            df_in = None
             logger.info("Working on: {}".format(date))
             logger.info("Query start...")
             query_for_paths = change_timestamp(query_from_file, date, dialect)
-            print(query_for_paths)
-            df_in = pd.io.gbq.read_gbq(query_for_paths,
-                                       project_id=pid,
-                                       reauth=False,
-                                       # verbose=True,
-                                       private_key=k_path,
-                                       dialect=dialect)
 
-            file_name = os.path.join(destination_dir, file_names + "_" + str(date) + '.csv.gz')
-            logger.info("Saving at: {}".format(file_name))
-            df_in.to_csv(file_name, compression='gzip',
-                         index=False)
-            logger.info("Saved to file.")
+            try:
+                df_in = pd.io.gbq.read_gbq(query_for_paths,
+                                           project_id=pid,
+                                           reauth=False,
+                                           # verbose=True,
+                                           private_key=k_path,
+                                           dialect=dialect)
+            except Exception as e:
+                logging.error("Oops, gbq failed.\n======\n {} \n======\n".format(traceback.format_exc()))
+
+            if df_in is not None:
+                file_name = os.path.join(destination_dir, file_names + "_" + str(date) + '.csv.gz')
+                logger.info("Saving at: {}".format(file_name))
+                df_in.to_csv(file_name, compression='gzip',
+                             index=False)
+                logger.info("Saved to file.")
+            else:
+                logger.error("Nothing to save, query failed.")
+
         else:
             logger.info("Skipped target date: {}".format(date))
 
@@ -105,4 +116,4 @@ if __name__ == "__main__":
     if query_path is not None:
         logger.info("Specified query exists, running...")
         query = read_query(query_path)
-        looped_query(query, date_list, [], ProjectID, key_path, dest_dir, filename, "legacy")
+        looped_query(query, date_list, [], ProjectID, key_path, dest_dir, filename)
