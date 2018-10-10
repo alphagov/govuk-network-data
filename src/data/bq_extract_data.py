@@ -28,14 +28,15 @@ def change_timestamp(x, date, dialect):
         return x.replace("TIME_STAMP", change)
 
 
-def looped_query(query_from_file, date_range, exclude, pid, k_path, destination_dir, file_names, dialect="legacy"):
-    runs = len(date_range) - len(exclude)
+def looped_query(query_from_file, date_range, exclude_dates, project_id, key_path, destination_dir, filename_stub,
+                 dialect="legacy"):
+    runs = len(date_range) - len(exclude_dates)
 
     logging.info(query_from_file)
 
     for i, date in enumerate(date_range):
         logger.info("RUN {} OUT OF {}".format(str(i + 1), runs))
-        if date not in exclude:
+        if date not in exclude_dates:
             df_in = None
             logger.info("Working on: {}".format(date))
             logger.info("Query start...")
@@ -43,16 +44,16 @@ def looped_query(query_from_file, date_range, exclude, pid, k_path, destination_
 
             try:
                 df_in = pd.io.gbq.read_gbq(query_for_paths,
-                                           project_id=pid,
+                                           project_id=project_id,
                                            reauth=False,
                                            # verbose=True,
-                                           private_key=k_path,
+                                           private_key=key_path,
                                            dialect=dialect)
             except Exception as e:
                 logging.error("Oops, gbq failed.\n======\n {} \n======\n".format(traceback.format_exc()))
 
             if df_in is not None:
-                file_name = os.path.join(destination_dir, file_names + "_" + str(date) + '.csv.gz')
+                file_name = os.path.join(destination_dir, filename_stub + "_" + str(date) + '.csv.gz')
                 logger.info("Saving at: {}".format(file_name))
                 df_in.to_csv(file_name, compression='gzip',
                              index=False)
@@ -81,7 +82,7 @@ if __name__ == "__main__":
     # BQ PROJECT SETUP
     ProjectID = 'govuk-bigquery-analytics'
     KEY_DIR = os.getenv("BQ_KEY_DIR")
-    key_path = os.path.join(KEY_DIR, os.listdir(KEY_DIR)[0])
+    key_file_path = os.path.join(KEY_DIR, os.listdir(KEY_DIR)[0])
 
     # DATA DIRECTORIES
     QUERIES_DIR = os.getenv("QUERIES_DIR")
@@ -99,7 +100,7 @@ if __name__ == "__main__":
     # RESOLVE QUERY FROM ARG
     query_path = find_query(args.query, QUERIES_DIR)
 
-    # Set up the thing
+    # If dest_dir doesn't exist, create it.
     if not os.path.isdir(dest_dir):
         logging.info("Specified destination directory does not exist, creating...")
         os.mkdir(DATA_DIR, args.dest_dir)
@@ -116,4 +117,4 @@ if __name__ == "__main__":
     if query_path is not None:
         logger.info("Specified query exists, running...")
         query = read_query(query_path)
-        looped_query(query, date_list, [], ProjectID, key_path, dest_dir, filename)
+        looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename)
