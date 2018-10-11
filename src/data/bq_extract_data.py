@@ -9,6 +9,11 @@ import pandas as pd
 
 
 def find_query(query_arg, query_dir):
+    '''(str, str) -> str
+    Return the relative paths of files in query_dir that contain query_arg string.
+    >>>find_query('work', './')
+    './work'
+    '''
     for file in os.listdir(query_dir):
         if fnmatch.fnmatch(file, "*" + query_arg + "*"):
             return os.path.join(query_dir, file)
