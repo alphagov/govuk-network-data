@@ -43,9 +43,9 @@ def change_timestamp(x, date, dialect):
 
 def looped_query(query_from_file, date_range, exclude_dates, project_id, key_path, destination_dir, filename_stub,
                  dialect="legacy"):
-    """(str, str, str, str, str, str, str) -> file
-    Saves a compressed csv with filename_stub suffixed with date queried
-    to destination_dir. They'll be one .csv per day queried. The query is
+    """(str, list, list, str, str, str, str) -> file
+    Saves a compressed csv with filename_stub suffixed to date queried
+    into destination_dir. They'll be one .csv per day queried. The query is
     derived from query_from_file and run against dates in the date_range
     that are not excluded by exclude_dates. The project_id and key_path
     are used to query the correct table and provide the permissions
