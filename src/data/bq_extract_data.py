@@ -9,18 +9,31 @@ import pandas as pd
 
 
 def find_query(query_arg, query_dir):
+    """(str, str) -> str
+    Return the relative paths of files in query_dir that contain query_arg string.
+    >>>find_query('work', './')
+    './work'
+    """
     for file in os.listdir(query_dir):
         if fnmatch.fnmatch(file, "*" + query_arg + "*"):
             return os.path.join(query_dir, file)
 
 
 def read_query(filepath):
+    """(str) -> str
+    Opens the file at filepath for reading, removing /n
+    before rejoining seperate lines with " " seperator.
+    """
     with open(filepath, 'r') as file:
         lines = " ".join(line.strip("\n") for line in file)
     return lines
 
 
 def change_timestamp(x, date, dialect):
+    """(str, str, str) -> str
+    Replace the timestamp in x, where x is the SQL query from file,
+    with the date, using the desired SQL dialect, which defaults to legacy.
+    """
     if dialect == "standard":
         return x.replace("TIME_STAMP", date.replace("-", ""))
     else:
@@ -30,6 +43,15 @@ def change_timestamp(x, date, dialect):
 
 def looped_query(query_from_file, date_range, exclude_dates, project_id, key_path, destination_dir, filename_stub,
                  dialect="legacy"):
+    """(str, list, list, str, str, str, str) -> file
+    Saves a compressed csv with filename_stub suffixed to date queried
+    into destination_dir. They'll be one .csv per day queried. The query is
+    derived from query_from_file and run against dates in the date_range
+    that are not excluded by exclude_dates. The project_id and key_path
+    are used to query the correct table and provide the permissions
+    for the query to run using BigQuery. These csv files can be
+    merged later in the pipeline with make_dataset.py.
+    """
     runs = len(date_range) - len(exclude_dates)
 
     logging.info(query_from_file)
