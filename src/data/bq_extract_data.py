@@ -43,6 +43,15 @@ def change_timestamp(x, date, dialect):
 
 def looped_query(query_from_file, date_range, exclude_dates, project_id, key_path, destination_dir, filename_stub,
                  dialect="legacy"):
+    """(str, str, str, str, str, str, str) -> file
+    Saves a compressed csv with filename_stub suffixed with date queried
+    to destination_dir. They'll be one .csv per day queried. The query is
+    derived from query_from_file and run against dates in the date_range
+    that are not excluded by exclude_dates. The project_id and key_path
+    are used to query the correct table and provide the permissions
+    for the query to run using BigQuery. These csv files can be
+    merged later in the pipeline with make_dataset.py.
+    """
     runs = len(date_range) - len(exclude_dates)
 
     logging.info(query_from_file)
