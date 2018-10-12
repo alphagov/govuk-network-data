@@ -30,6 +30,10 @@ def read_query(filepath):
 
 
 def change_timestamp(x, date, dialect):
+    """(str, str, str) -> str
+    Replace the timestamp in x, where x is the SQL query from file,
+    with the date, using the desired SQL dialect, which defaults to legacy.
+    """
     if dialect == "standard":
         return x.replace("TIME_STAMP", date.replace("-", ""))
     else:
