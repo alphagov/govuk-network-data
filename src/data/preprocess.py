@@ -1,5 +1,6 @@
-from collections import Counter
 import re
+import numpy as np
+from collections import Counter
 
 
 # Transform raw SQL BigQuery string to list of page/event tuples
@@ -102,6 +103,7 @@ def aggregate_event_cat_act(event_list):
     """
     return list(Counter([(cat, act) for cat, act in event_list]).items())
 
+
 def collapse_loop(page_list):
     """
 
@@ -109,6 +111,7 @@ def collapse_loop(page_list):
     :return:
     """
     return [node for i, node in enumerate(page_list) if i == 0 or node != page_list[i - 1]]
+
 
 # Network things, should probably be moved somewhere else
 def start_end_page(page_list):
@@ -135,4 +138,3 @@ def start_page(page_list):
 
 def start_end_subpath_list(subpath_list):
     return subpath_list[0][0], subpath_list[-1][-1]
-
