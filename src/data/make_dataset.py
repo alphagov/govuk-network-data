@@ -358,34 +358,33 @@ if __name__ == "__main__":
     logger = logging.getLogger('make_dataset')
     #
     DATA_DIR = os.getenv("DATA_DIR")
+    DOCUMENTS = os.getenv("DOCUMENTS")
     source_dir = os.path.join(DATA_DIR, "")
     dest_dir = os.path.join(DATA_DIR, "")
-    #
+
     logger.info("Loading data")
-    #
-    # to_load = [os.path.join(source_dir, file) for file in os.listdir(source_dir)]
-    #
-    # pprint.pprint(to_load)
-    source_dir = "/Users/felisialoukou/Documents/test1"
+
+    source_dir = os.path.join(DOCUMENTS,"test1")
     name_stub = "user_network_paths_meta_2018-04-0"
     to_load = [os.path.join(source_dir, file) for file in os.listdir(source_dir) if name_stub in file]
-    # test()
+
+    test()
     # tryout(to_load)
-    run_multi(to_load)
-    # lst = list(range(60))
-    # chunk = int(len(lst)/2)
-    # print(chunk)
-    # print(list(range(len([1, 2]))))
-    # print("max depth",compute_max_depth(lst,chunk,0)-1)
+
+    lst = list(range(60))
+    chunk = int(len(lst)/2)
+    print(chunk)
+    print(list(range(len([1, 2]))))
+    print("max depth",compute_max_depth(lst,chunk,0)-1)
 
     # list stuff
-    # print(list(itertools.product(COUNTABLE_AGGREGATE_COLUMNS,[1,2,3,4])))
-    # lst = [1,2]
-    # chunk_size = int(len(lst)/2)
-    # print(len(lst),chunk_size)
-    # print(list(chunks(lst,chunk_size)))
-    # print([list(x) for x in np.array_split(lst,3)])
-    # print(np.array_split(range(len(lst)), 2))
-    # print(list(split(lst,2)))
-    # test = [1,2,3,4,6]
-    # print("Final:",partition_list(test, 2))
+    print(list(itertools.product(COUNTABLE_AGGREGATE_COLUMNS,[1,2,3,4])))
+    lst = [1,2]
+    chunk_size = int(len(lst)/2)
+    print(len(lst),chunk_size)
+    print([list(x) for x in np.array_split(lst,3)])
+    print(np.array_split(range(len(lst)), 2))
+    test = [1,2,3,4,6]
+    print("Final:",partition_list(test, 2))
+
+    run_multi(to_load)
