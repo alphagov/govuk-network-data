@@ -3,13 +3,12 @@
 import itertools
 import logging.config
 import os
-import re
-from collections import Counter
 from multiprocessing import Pool, cpu_count
-from src.data.preprocess import *
 
 import numpy as np
 import pandas as pd
+
+from src.data.preprocess import *
 
 AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
                      'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
@@ -18,19 +17,10 @@ AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
 # 'TrafficSources',
 # 'Locations'
 # , 'DeviceCategories'
-COUNTABLE_AGGREGATE_COLUMNS = ['Languages','Locations', 'DeviceCategories', 'TrafficSources',
+COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'TrafficSources',
                                'TrafficMediums', 'NetworkLocations']
 
 FEWER_THAN_CPU = False
-
-
-
-
-
-
-
-
-
 
 
 # Transform metadata lists to dictionary aggregates
@@ -74,8 +64,6 @@ def has_loop(page_list):
     :return:
     """
     return any(i == j for i, j in zip(page_list, page_list[1:]))
-
-
 
 
 def add_loop_columns(user_journey):
@@ -252,7 +240,7 @@ def partition_list(x, chunks):
 
             # if len(to_merge) > 1:
             #     initial.append([m for m in to_merge])
-                # ==1
+            # ==1
             if len(to_merge) >= 1:
                 # print(len(initial))
                 initial[-1].extend(to_merge)
@@ -261,7 +249,7 @@ def partition_list(x, chunks):
 
 
 def del_var(x):
-    if isinstance(x,list):
+    if isinstance(x, list):
         for xs in x:
             del xs
     del x
@@ -282,10 +270,10 @@ def distribute(pool, dflist, chunks, depth=0):
         new_list = pool.starmap(groupby_meta, zip(new_list, itertools.repeat(depth)))
         pool.join()
         # (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks)
-        return distribute(pool, new_list, int(chunks/2), depth + 1)
+        return distribute(pool, new_list, int(chunks / 2), depth + 1)
     else:
-        print("list of things",[df.shape for df in dflist])
-        print("0th",dflist[0].shape)
+        print("list of things", [df.shape for df in dflist])
+        print("0th", dflist[0].shape)
         return dflist[0]
 
 
