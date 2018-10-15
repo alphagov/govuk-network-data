@@ -1,6 +1,7 @@
 import re
-import numpy as np
 from collections import Counter
+
+import numpy as np
 
 
 # Transform raw SQL BigQuery string to list of page/event tuples
@@ -138,3 +139,24 @@ def start_page(page_list):
 
 def start_end_subpath_list(subpath_list):
     return subpath_list[0][0], subpath_list[-1][-1]
+
+
+# Loop-related functions
+def has_loop(page_list):
+    """
+
+    :param page_list:
+    :return:
+    """
+    return any(i == j for i, j in zip(page_list, page_list[1:]))
+
+
+# repetitions
+def has_repetition(page_list):
+    """
+    Check if a list of page hits contains a page repetition (A >> B >> A) == True
+    Run on journeys with collapsed loops so stuff like A >> A >> B are not captured as a repetition
+    :param page_list: list of page hits derived from BQ user journey
+    :return: True if there is a repetition
+    """
+    return len(set(page_list)) != len(page_list)

@@ -5,7 +5,6 @@ import logging.config
 import os
 from multiprocessing import Pool, cpu_count
 
-import numpy as np
 import pandas as pd
 
 from src.data.preprocess import *
@@ -56,16 +55,6 @@ def zip_aggregate_metadata(user_journey_df):
     user_journey_df['AggMeta'] = col
 
 
-# Loop-related functions
-def has_loop(page_list):
-    """
-
-    :param page_list:
-    :return:
-    """
-    return any(i == j for i, j in zip(page_list, page_list[1:]))
-
-
 def add_loop_columns(user_journey):
     """
 
@@ -80,17 +69,6 @@ def add_loop_columns(user_journey):
     # user_journey['Sequence_No_Loops'] = user_journey['Sequence_List_No_Loops'].map(list_to_path_string)
     logger.info("Aggregating de-looped journey occurrences...")
     user_journey['Occurrences_No_Loop'] = user_journey.groupby('Sequence_No_Loop')['Occurrences'].transform('sum')
-
-
-# repetitions
-def has_repetition(page_list):
-    """
-    Check if a list of page hits contains a page repetition (A >> B >> A) == True
-    Run on journeys with collapsed loops so stuff like A >> A >> B are not captured as a repetition
-    :param page_list: list of page hits derived from BQ user journey
-    :return: True if there is a repetition
-    """
-    return len(set(page_list)) != len(page_list)
 
 
 def sequence_preprocess(df):
@@ -110,7 +88,7 @@ def event_counters(df):
 #         if agg in df.columns:
 #             df[agg] = df[agg].map(str_to_dict())
 
-
+#TODO one day
 # def gpb(agg, df):
 #     if agg in df.columns:
 #         logger.info("Aggregating {}...".format(agg))
@@ -147,16 +125,16 @@ def groupby_meta(df, depth):
         print(df.shape)
     return df
 
-
-# def mass_preprocess(df, depth, max_depth):
-#     groupby_meta(df, depth)
-#     if depth > 2:
-#         df = df[df.Occurrences > 1]
-#     elif depth == max_depth:
-#         sequence_preprocess(df)
-#         event_counters(df)
-#
-#     return df
+#TODO
+def mass_preprocess(df, depth, max_depth):
+    # groupby_meta(df, depth)
+    # if depth > 2:
+    #     df = df[df.Occurrences > 1]
+    # elif depth == max_depth:
+    #     sequence_preprocess(df)
+    #     event_counters(df)
+    #
+    return None
 
 #
 # def merge(occurrence_limit, to_load, links):
@@ -280,13 +258,14 @@ def distribute(pool, dflist, chunks, depth=0):
 def run_multi(files):
     global FEWER_THAN_CPU
     num_cpu = cpu_count()
-    chunks = 2
+    chunks = int(len(files)/2)
+
+    logger.info("Number of files: {}".format(len(files)))
     logger.info("Using {} workers...".format(num_cpu))
     pool = Pool(num_cpu)
-    file_list = files
-    logger.info("Number of files: {}".format(len(file_list)))
+
     logger.info("Multi start")
-    df_list = pool.map(read_file, file_list)
+    df_list = pool.map(read_file, files)
     logger.info("Done reading.")
     logger.info("Let the fail begin")
     if len(df_list) < num_cpu:
