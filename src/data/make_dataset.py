@@ -12,11 +12,8 @@ from src.data.preprocess import *
 AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
                      'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
                      'Times', 'Dates', 'Time_Spent', 'userID']
-
-# 'TrafficSources',
-# 'Locations'
-# , 'DeviceCategories'
-COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'TrafficSources',
+# 'Locations', 'DeviceCategories', 'TrafficSources',
+COUNTABLE_AGGREGATE_COLUMNS = ['Languages',
                                'TrafficMediums', 'NetworkLocations']
 
 FEWER_THAN_CPU = False
@@ -24,14 +21,11 @@ FEWER_THAN_CPU = False
 
 # Transform metadata lists to dictionary aggregates
 def list_to_dict(metadata_list):
-    # local_dict = Counter()
-    # for xs in x:
-    #     local_dict[xs] += 1
-    # return list(local_dict.items())
     return list(Counter([xs for xs in metadata_list]).items())
 
 
 def str_to_dict(metadata_str):
+    # print(metadata_str)
     return list_to_dict(metadata_str.split(','))
 
 
@@ -55,32 +49,32 @@ def zip_aggregate_metadata(user_journey_df):
     user_journey_df['AggMeta'] = col
 
 
-def add_loop_columns(user_journey):
+def add_loop_columns(user_journey_df):
     """
 
-    :param user_journey:
+    :param user_journey_df:
     :return:
     """
     logger.info("Collapsing loops...")
-    user_journey['Sequence_List_No_Loops'] = user_journey['Sequence_List'].map(collapse_loop)
+    user_journey_df['Sequence_List_No_Loops'] = user_journey_df['Sequence_List'].map(collapse_loop)
     # logger.info("Has loop...")
     # user_journey['Has_Loop'] = user_journey['Sequence_List'].map(has_loop)
     # logger.info("To string...")
     # user_journey['Sequence_No_Loops'] = user_journey['Sequence_List_No_Loops'].map(list_to_path_string)
     logger.info("Aggregating de-looped journey occurrences...")
-    user_journey['Occurrences_No_Loop'] = user_journey.groupby('Sequence_No_Loop')['Occurrences'].transform('sum')
+    user_journey_df['Occurrences_No_Loop'] = user_journey_df.groupby('Sequence_No_Loop')['Occurrences'].transform('sum')
 
 
-def sequence_preprocess(df):
-    df['Page_Event_List'] = df['Sequence'].map(bq_journey_to_pe_list)
-    df['Page_List'] = df['Page_Event_List'].map(lambda x: extract_pe_components(x, 0))
-    df['Event_List'] = df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
+def sequence_preprocess(user_journey_df):
+    user_journey_df['Page_Event_List'] = user_journey_df['Sequence'].map(bq_journey_to_pe_list)
+    user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 0))
+    user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
 
 
-def event_counters(df):
-    df['num_event_cats'] = df['Event_List'].map(count_event_cat)
-    df['Event_cats_agg'] = df['Event_List'].map(aggregate_event_cat)
-    df['Event_cat_act_agg'] = df['Event_List'].map(aggregate_event_cat_act)
+def event_counters(user_journey_df):
+    user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(count_event_cat)
+    user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(aggregate_event_cat)
+    user_journey_df['Event_cat_act_agg'] = user_journey_df['Event_List'].map(aggregate_event_cat_act)
 
 
 # def multi_str_to_dict(df):
@@ -88,7 +82,7 @@ def event_counters(df):
 #         if agg in df.columns:
 #             df[agg] = df[agg].map(str_to_dict())
 
-#TODO one day
+# TODO one day
 # def gpb(agg, df):
 #     if agg in df.columns:
 #         logger.info("Aggregating {}...".format(agg))
@@ -107,25 +101,29 @@ def aggregate_dict(x):
     return list(metadata_counter.items())
 
 
-def groupby_meta(df, depth):
+def groupby_meta(df, depth, multiple_dfs, num_dfs):
+    logger.info("Current depth: {} Number of dataframes: {}".format(depth, num_dfs))
+
     for agg in COUNTABLE_AGGREGATE_COLUMNS:
         if agg in df.columns:
-            metadata_gpb = {}
             logger.info("Aggregating {}...".format(agg))
-            if depth > 0:
+
+            if depth == 0:
+                df[agg] = df[agg].map(str_to_dict)
+            if multiple_dfs:
                 metadata_gpb = df.groupby('Sequence')[agg].apply(aggregate_dict)
-            else:
-                metadata_gpb = df.groupby('Sequence')[agg].apply(list_to_dict)
-            logger.info("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
-            df[agg] = df['Sequence'].map(metadata_gpb)
-    if depth > 0:
+                logger.info("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
+                df[agg] = df['Sequence'].map(metadata_gpb)
+
+    if multiple_dfs:
         logger.info("Drop duplicates")
         print(df.shape)
         df.drop_duplicates(subset='Sequence', keep='first', inplace=True)
         print(df.shape)
     return df
 
-#TODO
+
+# TODO
 def mass_preprocess(df, depth, max_depth):
     # groupby_meta(df, depth)
     # if depth > 2:
@@ -135,6 +133,7 @@ def mass_preprocess(df, depth, max_depth):
     #     event_counters(df)
     #
     return None
+
 
 #
 # def merge(occurrence_limit, to_load, links):
@@ -240,13 +239,15 @@ def distribute(pool, dflist, chunks, depth=0):
         partitions = partition_list(dflist, chunks)
         for i, index_list in enumerate(partitions):
             lst = [dflist[ind] for ind in index_list]
+            multiple_df = len(lst) > 1
             logger.info("Run: {} Num_of_pairs: {}".format(i, len(dflist)))
             pair_df = pd.concat(lst)
             del_var(lst)
             logger.info("Size of merged dataframe: {}".format(pair_df.shape))
             new_list.append(pair_df)
-        new_list = pool.starmap(groupby_meta, zip(new_list, itertools.repeat(depth)))
-        pool.join()
+        new_list = pool.starmap(groupby_meta, zip(new_list, itertools.repeat(depth), itertools.repeat(multiple_df),
+                                                  itertools.repeat(len(lst))))
+        # pool.join()
         # (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks)
         return distribute(pool, new_list, int(chunks / 2), depth + 1)
     else:
@@ -255,10 +256,10 @@ def distribute(pool, dflist, chunks, depth=0):
         return dflist[0]
 
 
-def run_multi(files):
+def run_multi(files, destination, final_filename):
     global FEWER_THAN_CPU
     num_cpu = cpu_count()
-    chunks = int(len(files)/2)
+    chunks = int(len(files) / 2)
 
     logger.info("Number of files: {}".format(len(files)))
     logger.info("Using {} workers...".format(num_cpu))
@@ -278,13 +279,17 @@ def run_multi(files):
 
     print(df.iloc[0])
 
+    logger.info("Shape: {}".format(df.shape))
+    path_to_file = os.path.join(destination, final_filename)
+    logger.info("Saving at: {}".format(path_to_file))
+    df.to_csv(path_to_file, compression='gzip')
+
     pool.close()
     pool.join()
     #
     # print(len(df_list))
     # print(dir())
     logger.info("Multi done")
-    logger.info("Shape: {}".format(df.shape))
 
 
 def tryout(files):
@@ -364,7 +369,7 @@ if __name__ == "__main__":
 
     logger.info("Loading data")
 
-    source_dir = os.path.join(DOCUMENTS,"test1")
+    source_dir = os.path.join(DOCUMENTS, "test1")
     name_stub = "user_network_paths_meta_2018-04-0"
     to_load = [os.path.join(source_dir, file) for file in os.listdir(source_dir) if name_stub in file]
 
@@ -372,19 +377,25 @@ if __name__ == "__main__":
     # tryout(to_load)
 
     lst = list(range(60))
-    chunk = int(len(lst)/2)
+    chunk = int(len(lst) / 2)
     print(chunk)
     print(list(range(len([1, 2]))))
-    print("max depth",compute_max_depth(lst,chunk,0)-1)
+    print("max depth", compute_max_depth(lst, chunk, 0) - 1)
 
     # list stuff
-    print(list(itertools.product(COUNTABLE_AGGREGATE_COLUMNS,[1,2,3,4])))
-    lst = [1,2]
-    chunk_size = int(len(lst)/2)
-    print(len(lst),chunk_size)
-    print([list(x) for x in np.array_split(lst,3)])
+    print(list(itertools.product(COUNTABLE_AGGREGATE_COLUMNS, [1, 2, 3, 4])))
+    lst = [1, 2]
+    chunk_size = int(len(lst) / 2)
+    print(len(lst), chunk_size)
+    print([list(x) for x in np.array_split(lst, 3)])
     print(np.array_split(range(len(lst)), 2))
-    test = [1,2,3,4,6]
-    print("Final:",partition_list(test, 2))
+    test = [1, 2, 3, 4, 6]
+    print("Final:", partition_list(test, 2))
 
-    run_multi(to_load)
+    # Test multiprocessing
+    # If dest_dir doesn't exist, create it.
+    test_ouput_dir = os.path.join(source_dir, "output")
+    if not os.path.isdir(test_ouput_dir):
+        logging.info("Specified destination directory does not exist, creating...")
+        os.mkdir(test_ouput_dir)
+    run_multi(to_load, test_ouput_dir, "merge_test_1.csv.gz")
