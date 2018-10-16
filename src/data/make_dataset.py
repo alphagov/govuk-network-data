@@ -17,6 +17,7 @@ COUNTABLE_AGGREGATE_COLUMNS = ['Languages',
                                'TrafficMediums', 'NetworkLocations']
 
 FEWER_THAN_CPU = False
+MAX_DEPTH = -1
 
 
 # Transform metadata lists to dictionary aggregates
@@ -67,8 +68,8 @@ def add_loop_columns(user_journey_df):
 
 def sequence_preprocess(user_journey_df):
     user_journey_df['Page_Event_List'] = user_journey_df['Sequence'].map(bq_journey_to_pe_list)
-    user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 0))
-    user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
+    user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
+    # user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
 
 
 def event_counters(user_journey_df):
@@ -101,9 +102,7 @@ def aggregate_dict(x):
     return list(metadata_counter.items())
 
 
-def groupby_meta(df, depth, multiple_dfs, num_dfs):
-    logger.info("Current depth: {} Number of dataframes: {}".format(depth, num_dfs))
-
+def groupby_meta(df, depth, multiple_dfs):
     for agg in COUNTABLE_AGGREGATE_COLUMNS:
         if agg in df.columns:
             logger.info("Aggregating {}...".format(agg))
@@ -114,115 +113,52 @@ def groupby_meta(df, depth, multiple_dfs, num_dfs):
                 metadata_gpb = df.groupby('Sequence')[agg].apply(aggregate_dict)
                 logger.info("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
                 df[agg] = df['Sequence'].map(metadata_gpb)
-
-    if multiple_dfs:
-        logger.info("Drop duplicates")
-        print(df.shape)
-        df.drop_duplicates(subset='Sequence', keep='first', inplace=True)
-        print(df.shape)
-    return df
+    #
+    # return df
 
 
 # TODO
-def mass_preprocess(df, depth, max_depth):
-    # groupby_meta(df, depth)
-    # if depth > 2:
-    #     df = df[df.Occurrences > 1]
-    # elif depth == max_depth:
-    #     sequence_preprocess(df)
-    #     event_counters(df)
-    #
-    return None
-
-
-#
-# def merge(occurrence_limit, to_load, links):
-#     user_journeys = pd.DataFrame()
-#     logger.info("Limit: {}".format(occurrence_limit))
-#     logger.info("Starting...")
-#
-#     for i, dataset in enumerate(to_load):
-#         date_queried = dataset.split("/")[-1].split("_")[-1].replace(".csv.gz", "")
-#         logger.info("RUN {} OF {} || DATE: {}".format(i + 1, len(to_load), date_queried))
-#
-#         user_journey_i = pd.read_csv(dataset, compression='gzip')
-#
-#         logger.info("Splitting BQ journeys to lists...")
-#
-#         # Drop before you start doing transformations
-#         # before_drop_freq = user_journey_i.shape[0]
-#         # logger.info("Before Occurrence drop: {}".format(before_drop_freq))
-#         #
-#         # user_journey_i = user_journey_i[user_journey_i.Occurrences_No_Loops > occurrence_limit]
-#         #
-#         # after_drop_freq = user_journey_i.shape[0]
-#         # logger.info("After Occurrence drop: {}".format(after_drop_freq))
-#         # logger.info("Percentage dropped: {}".format(((before_drop_freq - after_drop_freq) * 100) / before_drop_freq))
-#
-#         # Loop stuff
-#         add_loop_columns(user_journey_i)
-#
-#         user_journey_i['Date_Queried'] = date_queried
-#
-#         print("String metadata to dict...")
-#         multi_str_to_dict(COUNTABLE_AGGREGATE_COLUMNS, user_journey_i)
-#
-#         print("Merge into main dataframe...")
-#         user_journeys = pd.concat([user_journeys, user_journey_i])
-#
-#         logger.info("Aggregating Occurrences of paths...")
-#         user_journeys['Occurrences'] = user_journeys.groupby('Sequence')['Occurrences'].transform('sum')
-#
-#         logger.info("Aggregating individual metadata frequencies...")
-#         for agg in AGGREGATE_COLUMNS:
-#             print("Aggregating {}...".format(agg))
-#             metadata_gpb = user_journeys.groupby('Sequence')[agg].apply(list_to_dict)
-#             user_journeys[agg] = user_journeys['Sequence'].map(metadata_gpb)
-#
-#         logger.info("Before dropping dupes: {}".format(user_journeys.shape))
-#         user_journeys.drop_duplicates(subset='Sequence', inplace=True)
-#         logger.info("After dropping dupes: {}".format(user_journeys.shape))
-#
-#     logger.info("End")
-#
-#     return user_journeys
+def mass_preprocess(user_journey_df, depth, multiple_dfs, num_dfs):
+    logger.info("Mass preprocessing...")
+    logger.info("Current depth: {} Number of dataframes: {}".format(depth, num_dfs))
+    groupby_meta(user_journey_df, depth, multiple_dfs)
+    # print(user_journey_df.Languages.iloc[0])
+    logger.info("Occurrences...".format(depth, num_dfs))
+    user_journey_df['Occurrences'] = user_journey_df.groupby('Sequence')['Occurrences'].transform('sum')
+    if multiple_dfs:
+        logger.info("Drop duplicates")
+        # print(user_journey_df.shape)
+        user_journey_df.drop_duplicates(subset='Sequence', keep='first', inplace=True)
+        # print(user_journey_df.shape)
+    if depth > 2 and MAX_DEPTH > 2:
+        print("Dropping some rows...")
+        user_journey_df = user_journey_df[user_journey_df.Occurrences > 1]
+    if depth == MAX_DEPTH - 1:
+        sequence_preprocess(user_journey_df)
+        # event_counters(df)
+    return user_journey_df
 
 
 def read_file(filename):
     logging.info("Reading: {}".format(filename))
-    # temp = pd.read_csv(filename, compression="gzip")
-    # logger.info("Meta groupby time")
-    # pooled_groupby(temp)
     return pd.read_csv(filename, compression="gzip")
 
 
 def partition_list(x, chunks):
-    # range(len(x))
-    # print("=====")
-    # print("original x",x)
-    # print("x",x,"chunks",chunks)
     if chunks > 0:
         initial = [list(xs) for xs in np.array_split(list(range(len(x))), chunks)]
-        # print("initial",initial)
+        # print(initial)
         if len(initial) > 1 and not FEWER_THAN_CPU:
-            # print("this",initial)
-            # print(initial)
             to_merge = []
             for element in initial:
                 if len(element) == 1:
                     to_merge.append(element[0])
                     initial.remove(element)
-            # print(to_merge)
-            # print(initial)
-
-            # if len(to_merge) > 1:
-            #     initial.append([m for m in to_merge])
-            # ==1
             if len(to_merge) >= 1:
-                # print(len(initial))
                 initial[-1].extend(to_merge)
         return initial
-    return [[0]]
+    else:
+        return [[0]]
 
 
 def del_var(x):
@@ -240,15 +176,13 @@ def distribute(pool, dflist, chunks, depth=0):
         for i, index_list in enumerate(partitions):
             lst = [dflist[ind] for ind in index_list]
             multiple_df = len(lst) > 1
-            logger.info("Run: {} Num_of_pairs: {}".format(i, len(dflist)))
+            logger.info("Run: {} Num_of_df_to_merge: {}".format(i, len(lst)))
             pair_df = pd.concat(lst)
             del_var(lst)
             logger.info("Size of merged dataframe: {}".format(pair_df.shape))
             new_list.append(pair_df)
-        new_list = pool.starmap(groupby_meta, zip(new_list, itertools.repeat(depth), itertools.repeat(multiple_df),
-                                                  itertools.repeat(len(lst))))
-        # pool.join()
-        # (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks)
+        new_list = pool.starmap(mass_preprocess, zip(new_list, itertools.repeat(depth), itertools.repeat(multiple_df),
+                                                     itertools.repeat(len(lst))))
         return distribute(pool, new_list, int(chunks / 2), depth + 1)
     else:
         print("list of things", [df.shape for df in dflist])
@@ -258,31 +192,29 @@ def distribute(pool, dflist, chunks, depth=0):
 
 def run_multi(files, destination, final_filename):
     global FEWER_THAN_CPU
+    global MAX_DEPTH
     num_cpu = cpu_count()
-    chunks = int(len(files) / 2)
+    num_chunks = (lambda x: int(len(x) / 2) if len(x) > num_cpu else len(x))(files)
+    FEWER_THAN_CPU = num_chunks == len(files)
+    MAX_DEPTH = compute_max_depth(files, num_chunks, 0)
 
+    logger.info("chunks {} fewer {} max_depth".format(num_chunks,FEWER_THAN_CPU, MAX_DEPTH))
     logger.info("Number of files: {}".format(len(files)))
     logger.info("Using {} workers...".format(num_cpu))
     pool = Pool(num_cpu)
 
-    logger.info("Multi start")
+    logger.info("Multi start...")
     df_list = pool.map(read_file, files)
-    logger.info("Done reading.")
-    logger.info("Let the fail begin")
-    if len(df_list) < num_cpu:
-        chunks = len(df_list)
-        FEWER_THAN_CPU = True
-    df = distribute(pool, df_list, chunks)
-    # zip(l, itertools.repeat(o))
-    # list(itertools.zip(COUNTABLE_AGGREGATE_COLUMNS, df))
-    # pool.starmap(gpb, zip(COUNTABLE_AGGREGATE_COLUMNS, itertools.repeat(df)))
+    logger.info("Distributing tasks...")
+
+    df = distribute(pool, df_list, num_chunks)
 
     print(df.iloc[0])
 
     logger.info("Shape: {}".format(df.shape))
     path_to_file = os.path.join(destination, final_filename)
     logger.info("Saving at: {}".format(path_to_file))
-    df.to_csv(path_to_file, compression='gzip')
+    df.to_csv(path_to_file, compression='gzip', index=False)
 
     pool.close()
     pool.join()
@@ -333,18 +265,8 @@ def test():
 
 def compute_max_depth(test_list, chunks, depth):
     partitions = partition_list(test_list, chunks)
-    # print(partitions)
     if len(test_list) > 1:
-        # print("=========")
-        # print("len",len(test_list))
-        new_lst = []
-        # print("testlist",test_list)
-        for i, index_list in enumerate(partitions):
-            # print(index_list)
-            temp = [test_list[ind] for ind in index_list]
-            new_lst.append("+".join([str(t) for t in (temp[0], temp[-1])]))
-            # print("newlist",new_lst)
-        # print("current depth", depth)
+        new_lst = [0 for _ in partitions]
         return compute_max_depth(new_lst, (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks), depth + 1)
     else:
         return depth
@@ -392,10 +314,17 @@ if __name__ == "__main__":
     test = [1, 2, 3, 4, 6]
     print("Final:", partition_list(test, 2))
 
+    # num_cpu = cpu_count()
+    # for i in range(0, 20, 1):
+    #     test_list = list(range(i))
+    #     chunks = (lambda x: int(len(x) / 2) if len(x) < num_cpu else len(x))(test_list)
+    #     FEWER_THAN_CPU = chunks == len(test_list)
+    #     print("List size", i, "Max depth:", compute_max_depth(test_list, chunks, 0))
+
     # Test multiprocessing
     # If dest_dir doesn't exist, create it.
-    test_ouput_dir = os.path.join(source_dir, "output")
-    if not os.path.isdir(test_ouput_dir):
+    testout_dir = os.path.join(source_dir, "output")
+    if not os.path.isdir(testout_dir):
         logging.info("Specified destination directory does not exist, creating...")
-        os.mkdir(test_ouput_dir)
-    run_multi(to_load, test_ouput_dir, "merge_test_1.csv.gz")
+        os.mkdir(testout_dir)
+    run_multi(to_load, testout_dir, "merge_test_1.csv.gz")
