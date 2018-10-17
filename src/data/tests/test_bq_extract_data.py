@@ -5,6 +5,8 @@ import bq_extract_data
 def test_find_query():
     assert bq_extract_data.find_query("test_bq_extract_data.py", "./tests") == "./tests/test_bq_extract_data.py"
     assert bq_extract_data.find_query("quer", "./tests") == "./tests/query.sql"
+    # returns first file to match query_arg, bug or feature?
+    assert bq_extract_data.find_query("", "./tests") == "./tests/test.sql"
 
 # test removing linebreaks from sql query file
 # add space for line breaks
