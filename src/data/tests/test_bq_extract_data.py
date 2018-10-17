@@ -23,3 +23,9 @@ def test_change_timestamp():
     assert bq_extract_data.change_timestamp(x =  "SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_], TIME_STAMP)) WHERE PageSeq_Length > 1", date = "2018-12-31", dialect = "legacy") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_], TIMESTAMP("2018-12-31"), TIMESTAMP("2018-12-31")))) WHERE PageSeq_Length > 1'
     # standard, input x with read_query output
     assert bq_extract_data.change_timestamp(x = bq_extract_data.read_query("./tests/query.sql"), date = "2018-12-31", dialect =  "standard") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     20181231))     WHERE PageSeq_Length > 1'
+
+# functional test
+def test_find_read_change_timestamp_combined():
+    assert  bq_extract_data.change_timestamp(bq_extract_data.read_query(bq_extract_data.find_query("query", "./tests")), date = "2018-12-31", dialect =  "standard") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     20181231))     WHERE PageSeq_Length > 1'
+
+
