@@ -12,9 +12,11 @@ Python 3.6.0
 
 ```mkdir key```
 
+then put the json file in there
+
 ## Running a big query extract
 
-```python data/bq_extract_data.py start_date='2018-10-15' end_date='2018-10-15' dest_dir='test' filename='test' query='simple_test.sql'```
+```python src/data/bq_extract_data.py '2018-10-15' '2018-10-15' 'test_dir' 'test' 'simple_test.sql'```
 
 ## Creating a csv with each row a user journey with sessions rolled into it
 
