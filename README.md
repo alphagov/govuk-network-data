@@ -8,6 +8,10 @@ Python 3.6.0
 
 pip install -r requirements.txt
 
+## Where to put your BigQuery key
+
+mkdir key
+
 ## Running a big query extract
 
 python data/bq_extract_data.py start_date='2018-10-15' end_date='2018-10-15' dest_dir='data' filename='test' query='simple_test.sql'
