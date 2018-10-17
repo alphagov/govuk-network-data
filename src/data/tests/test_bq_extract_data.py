@@ -28,6 +28,15 @@ def test_change_timestamp():
 
 # functional test
 def test_find_read_change_timestamp_combined():
+    """
+    Combines the three functions above. A user provides an
+    approximate name of the file in a given dir that holds their
+    SQL query of interest. This is read in and converted to a string,
+    replacing line breaks with spaces. This "SQL query" str
+    then has its timestamps adjusted to the correct dialect
+    and so that the correct table is read in BigQuery.
+    One table per day.
+    """
     assert  bq_extract_data.change_timestamp(bq_extract_data.read_query(bq_extract_data.find_query("query", "./tests")), date = "2018-12-31", dialect =  "standard") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     20181231))     WHERE PageSeq_Length > 1'
 
 
