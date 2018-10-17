@@ -11,6 +11,6 @@ pytest is used for unit testing. Install using pip following these [instructions
 
 Following installation navigate to the appropriate folder to run tests. For example to run tests on functions associated with the data extraction pipeline, go to `./src/data/` and run:  
 
-`python -m pytest tests/`  
+`python -m pytest -v tests/`  
 
 ## References
