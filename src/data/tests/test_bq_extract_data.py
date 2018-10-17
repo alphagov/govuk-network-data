@@ -13,6 +13,11 @@ def test_read_query():
     # handles indent as represented by two-spaces
     assert bq_extract_data.read_query("./tests/query.sql") == "SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     TIME_STAMP))     WHERE PageSeq_Length > 1"
 
-# convert dates into correct GA table to read from (one table per day)
 def test_change_timestamp():
+    """
+    Unit test for change_timestamp. Tests for both "standard" and "legacy" SQL timestamp differences.
+    """
+    # standard
     assert bq_extract_data.change_timestamp(x =  "SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_], TIME_STAMP)) WHERE PageSeq_Length > 1", date = "2018-12-31", dialect = "standard") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_], 20181231)) WHERE PageSeq_Length > 1'
+    # legacy
+    assert bq_extract_data.change_timestamp(x =  "SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_], TIME_STAMP)) WHERE PageSeq_Length > 1", date = "2018-12-31", dialect = "legacy") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_], TIMESTAMP("2018-12-31"), TIMESTAMP("2018-12-31")))) WHERE PageSeq_Length > 1'
