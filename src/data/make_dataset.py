@@ -106,7 +106,6 @@ def groupby_meta(df, depth, multiple_dfs):
     for agg in COUNTABLE_AGGREGATE_COLUMNS:
         if agg in df.columns:
             logger.info("Aggregating {}...".format(agg))
-
             if depth == 0:
                 df[agg] = df[agg].map(str_to_dict)
             if multiple_dfs:
@@ -130,7 +129,7 @@ def mass_preprocess(user_journey_df, depth, multiple_dfs, num_dfs):
         # print(user_journey_df.shape)
         user_journey_df.drop_duplicates(subset='Sequence', keep='first', inplace=True)
         # print(user_journey_df.shape)
-    if depth > 2 and MAX_DEPTH > 2:
+    if depth > 2 and MAX_DEPTH > 2 and do_drop:
         print("Dropping some rows...")
         user_journey_df = user_journey_df[user_journey_df.Occurrences > 1]
     if depth == MAX_DEPTH - 1:
@@ -198,7 +197,7 @@ def run_multi(files, destination, final_filename):
     FEWER_THAN_CPU = num_chunks == len(files)
     MAX_DEPTH = compute_max_depth(files, num_chunks, 0)
 
-    logger.info("chunks {} fewer {} max_depth".format(num_chunks,FEWER_THAN_CPU, MAX_DEPTH))
+    logger.info("chunks {} fewer {} max_depth".format(num_chunks, FEWER_THAN_CPU, MAX_DEPTH))
     logger.info("Number of files: {}".format(len(files)))
     logger.info("Using {} workers...".format(num_cpu))
     pool = Pool(num_cpu)
