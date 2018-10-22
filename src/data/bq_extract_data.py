@@ -10,7 +10,9 @@ import pandas as pd
 
 def find_query(query_arg, query_dir):
     """(str, str) -> str
-    Return the relative paths of files in query_dir that contain query_arg string.
+    Return the relative path of the first file in
+    query_dir that contains a match for query_arg string.
+    The first file will be based on alphabetical order.
     >>>find_query('work', './')
     './work'
     """
