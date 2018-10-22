@@ -108,7 +108,7 @@ if __name__ == "__main__":
         # If dest_dir doesn't exist, create it.
         if not os.path.isdir(dest_dir):
             logging.info("Specified destination directory \"{}\" does not exist, creating...".format(dest_dir))
-            os.mkdir(DATA_DIR, args.dest_dir)
+            os.mkdir(os.path.join(DATA_DIR, args.dest_dir))
 
         logger.info(
             "\n======\nStart date: {} \nEnd date: {} \nDestination directory: {}\
