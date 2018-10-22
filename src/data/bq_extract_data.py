@@ -10,7 +10,7 @@ import pandas as pd
 
 def find_query(query_arg, query_dir):
     for file in os.listdir(query_dir):
-        if fnmatch.fnmatch(file, "*" + query_arg + "*"):
+        if fnmatch.fnmatch(file, "*" + query_arg + "*.sql"):
             return os.path.join(query_dir, file)
 
 
@@ -72,7 +72,11 @@ if __name__ == "__main__":
     parser.add_argument('dest_dir', help='Specialized destination directory for resulting dataframe file(s).')
     parser.add_argument('filename', help='Naming convention for resulting dataframe file(s).')
     parser.add_argument('query', help='Name of query to use, within queries directory.')
+    parser.add_argument('--standard', action='store_const', const="standard")
     args = parser.parse_args()
+    if args.standard is not None:
+        print("standard")
+        dialect = "standard"
 
     # Logger setup
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
@@ -98,23 +102,26 @@ if __name__ == "__main__":
     date_list = list(map(lambda x: x.strftime("%Y-%m-%d"), pd.date_range(start_date, end_date).tolist()))
 
     # RESOLVE QUERY FROM ARG
-    query_path = find_query(args.query, QUERIES_DIR)
+    if len(args.query) > 1:
+        query_path = find_query(args.query, QUERIES_DIR)
 
-    # If dest_dir doesn't exist, create it.
-    if not os.path.isdir(dest_dir):
-        logging.info("Specified destination directory does not exist, creating...")
-        os.mkdir(DATA_DIR, args.dest_dir)
+        # If dest_dir doesn't exist, create it.
+        if not os.path.isdir(dest_dir):
+            logging.info("Specified destination directory \"{}\" does not exist, creating...".format(dest_dir))
+            os.mkdir(DATA_DIR, args.dest_dir)
 
-    logger.info(
-        "\n======\nStart date: {} \nEnd date: {} \nDestination directory: {}\
-         \nFilename: {} \nQuery: {}\n======\n".format(
-            start_date,
-            end_date,
-            dest_dir,
-            filename,
-            query_path))
+        logger.info(
+            "\n======\nStart date: {} \nEnd date: {} \nDestination directory: {}\
+             \nFilename: {} \nQuery: {}\n======\n".format(
+                start_date,
+                end_date,
+                dest_dir,
+                filename,
+                query_path))
 
-    if query_path is not None:
-        logger.info("Specified query exists, running...")
-        query = read_query(query_path)
-        looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename)
+        if query_path is not None:
+            logger.info("Specified query exists, running...")
+            query = read_query(query_path)
+            looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename, dialect)
+    else:
+        logger.info("Query failed, not enough info provided")
