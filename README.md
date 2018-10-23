@@ -8,6 +8,8 @@ A data pipeline for extracting and preprocessing BigQuery user journey data. The
 A quick introduction of the minimal setup you need to get a hello world up &
 running.
 
+This should probably include setting up the computing environment and the necessary permissions required. Who to ask for them or point to a wiki page. 
+
 ```shell
 packagemanager install awesome-project
 awesome-project start
@@ -32,6 +34,35 @@ Python 3.6.0
 then put the json file in there
 
 # Features
+
+This package arms data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.  
+
+* A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journies that users travel in a session.   
+* Express this data as a graph with pages visited expressed as nodes and directed movement between pages as edges.   
+
+## Configuration
+
+Here you should write what are all of the configurations a user can enter when
+using the project.
+
+#### Argument 1
+Type: `String`  
+Default: `'default value'`
+
+State what an argument does and how you can use it. If needed, you can provide
+an example below.
+
+Example:
+```bash
+awesome-project "Some other value"  # Prints "You're nailing this readme!"
+```
+
+#### Argument 2
+Type: `Number|Boolean`  
+Default: 100
+
+Copy-paste as many of these as you need.
+
 
 ## Running a big query extract
 
@@ -61,35 +92,6 @@ Following installation navigate to the appropriate folder to run tests. For exam
 or
 `python3 -m pytest -v tests/`  
 
-## Features
-
-What's all the bells and whistles this project can perform?
-* What's the main functionality
-* You can also do another thing
-* If you get really randy, you can even do this
-
-## Configuration
-
-Here you should write what are all of the configurations a user can enter when
-using the project.
-
-#### Argument 1
-Type: `String`  
-Default: `'default value'`
-
-State what an argument does and how you can use it. If needed, you can provide
-an example below.
-
-Example:
-```bash
-awesome-project "Some other value"  # Prints "You're nailing this readme!"
-```
-
-#### Argument 2
-Type: `Number|Boolean`  
-Default: 100
-
-Copy-paste as many of these as you need.
 
 ## Contributing
 See `CONTRIBUTING.md`  
@@ -97,4 +99,4 @@ See `CONTRIBUTING.md`
 ## References
 
 ## License
-The code in this project is licensed under MIT license.
+
