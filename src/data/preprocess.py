@@ -1,10 +1,6 @@
 import re
 import numpy as np
 
-"""
-
-"""
-
 
 def clean_tuple(pe_str_tuple):
     """
@@ -25,7 +21,7 @@ def bq_journey_to_pe_list(bq_journey_string):
     :param bq_journey_string:
     :return: The list of page-event tuples.
     """
-
+    # TODO: fix line below, for now it replaces string in a weird /search query within journey (uncommon)
     bq_journey_string = bq_journey_string.replace(">>iii....", "")
     page_event_list = []
     for hit in bq_journey_string.split(">>"):
@@ -34,6 +30,7 @@ def bq_journey_to_pe_list(bq_journey_string):
         if len(page_event_tup) == 2:
             page_event_list.append(tuple(page_event_tup))
         else:
+            # Keep for debugging
             print("error")
             print(bq_journey_string)
             print(page_event_tup)
@@ -87,12 +84,13 @@ def split_event(event_str):
 
 def extract_pe_components(page_event_list, i):
     """
-
-    :param page_event_list:
-    :param i:
-    :return:
+    Extract page_list or event_list from page_event_list
+    :param page_event_list: list of (page,event) tuples
+    :param i: 0 for page_list 1 for event_list
+    :return: appropriate hit_list
     """
     hit_list = []
+    # page_event is a tuple
     for page_event in page_event_list:
         if i == 0:
             if page_event[1] == "NULL<:<NULL":
@@ -102,14 +100,11 @@ def extract_pe_components(page_event_list, i):
     return hit_list
 
 
-
-
-
 def collapse_loop(page_list):
     """
-
-    :param page_list:
-    :return:
+    Remove A>>A>>B page loops from page_list. Saved as new dataframe column.
+    :param page_list: the list of pages to de-loop
+    :return: de-loop page list
     """
     return [node for i, node in enumerate(page_list) if i == 0 or node != page_list[i - 1]]
 
@@ -117,28 +112,53 @@ def collapse_loop(page_list):
 # Network things, should probably be moved somewhere else
 def start_end_page(page_list):
     """
-
-    :param page_list:
-    :return:
+    Find start and end pages (nodes) in a list of page hits
+    :param page_list: list of page hits
+    :return: start and end nodes
     """
     return page_list[0], page_list[-1]
 
 
 def subpaths_from_list(page_list):
     """
-
-    :param page_list:
-    :return:
+    Build node pairs (edges) from a list of page hits
+    :param page_list: list of page hits
+    :return: list of all possible node pairs
     """
     return [[page, page_list[i + 1]] for i, page in enumerate(page_list) if i < len(page_list) - 1]
 
 
 def start_page(page_list):
+    """
+    First page/node in a list of page hits
+    :param page_list: list of page hits
+    :return: First page
+    """
     return page_list[0]
 
 
+def end_page(page_list):
+    """
+    Last page/node in a list of page hits
+    :param page_list: list of page hits
+    :return: last page
+    """
+    return page_list[-1]
+
+
 def start_end_subpath_list(subpath_list):
+    """
+    First/last page from list of node pairs
+    :param subpath_list: list of node pairs
+    :return: first and last page
+    """
     return subpath_list[0][0], subpath_list[-1][-1]
 
 
-
+def start_end_edges_subpath_list(subpath_list):
+    """
+    First/last node pairs (edges) from list of node pairs
+    :param subpath_list: list of node pairs
+    :return: first and last node pairs
+    """
+    return subpath_list[0], subpath_list[-1]
