@@ -22,3 +22,13 @@ then put the json file in there
 
 For example is 3 users went A -> B -> C on different devices, then this would be a single row with each device listed in that column
 
+## Unit tests
+pytest is used for unit testing. Install using pip following these [instructions].  
+
+`pip install -U pytest`
+
+Following installation navigate to the appropriate folder to run tests. For example to run tests on functions associated with the data extraction pipeline, go to `./src/data/` and run:  
+
+`python -m pytest -v tests/`  
+
+## References
