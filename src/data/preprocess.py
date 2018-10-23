@@ -6,7 +6,8 @@ import numpy as np
 
 # Transform raw SQL BigQuery string to list of page/event tuples
 def clean_tuple(x):
-    return [re.sub(r":|\"|\'", "", xs) for xs in x]
+    # if "http" not in xs else re.sub(r"\"|\'", "", xs)
+    return [re.sub(r"\"|\'", "", xs) for xs in x]
 
 
 def bq_journey_to_pe_list(bq_journey_string):
@@ -15,13 +16,22 @@ def bq_journey_to_pe_list(bq_journey_string):
     :param bq_journey_string:
     :return:
     """
+    bq_journey_string = bq_journey_string.replace(">>iii....", "")
     journey_list = []
     for hit in bq_journey_string.split(">>"):
-        page_event_tup = clean_tuple(hit.split("::"))
+        # split("//")
+
+        page_event_tup = clean_tuple(hit.split("<<"))
         if len(page_event_tup) == 2:
             journey_list.append(tuple(page_event_tup))
         else:
-            journey_list.append(("::".join(page_event_tup[:-1]), page_event_tup[-1]))
+            print("error")
+            print(bq_journey_string)
+            print(page_event_tup)
+            # if any(["http" in tup for tup in page_event_tup]):
+            #     journey_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
+            # else:
+            #     journey_list.append(("::".join(page_event_tup[:-1]), page_event_tup[-1]))
     return journey_list
 
 
@@ -47,13 +57,16 @@ def reindex_pe_list(page_event_list):
     return np.NaN
 
 
-def split_event_cat_act(event_list):
-    """
-
-    :param event_list:
-    :return:
-    """
-    return [tuple(event.split("//")) for event in event_list]
+def split_event(event_str):
+    event_tuple = tuple(event_str.split("<:<"))
+    if len(event_tuple) > 2:
+        print("more than two")
+        print(event_tuple)
+        # event_tuple = (event_tuple[0], "<<".join(event_tuple[1:]))
+    if len(event_tuple) == 1:
+        print(event_str)
+        print("this is a one", event_tuple)
+    return event_tuple
 
 
 def extract_pe_components(page_event_list, i):
@@ -63,7 +76,14 @@ def extract_pe_components(page_event_list, i):
     :param i:
     :return:
     """
-    return [page_event[i] for page_event in page_event_list]
+    hit_list = []
+    for page_event in page_event_list:
+        if i == 0:
+            if page_event[1] == "NULL<:<NULL":
+                hit_list.append(page_event[0])
+        else:
+            hit_list.append(split_event(page_event[i]))
+    return hit_list
 
 
 # Counts for events
