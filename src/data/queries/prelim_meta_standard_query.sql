@@ -1,6 +1,6 @@
 SELECT
   COUNT(*) AS Occurrences,
-  STRING_AGG(DeviceCategory,",") AS DeviceCategory,
+  STRING_AGG(DeviceCategory,",") AS DeviceCategories,
   PageSeq_Length,
   Actions_Length,
   STRING_AGG(Date,",") AS Dates,
@@ -11,7 +11,7 @@ FROM (
   FROM (
     SELECT
       CONCAT(fullVisitorId,"-",CAST(visitId AS STRING),"-",CAST(visitNumber AS STRING)) AS sessionId,
-      STRING_AGG(CONCAT(pagePath,"::",CONCAT(IFNULL(eventCategory, "NULL"),"//",IFNULL(eventAction, "NULL"))),
+      STRING_AGG(CONCAT(pagePath,"<<",CONCAT(IFNULL(eventCategory, "NULL"),"<:<",IFNULL(eventAction, "NULL"))),
         ">>") OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS Sequence,
       DeviceCategory,
       Date,
