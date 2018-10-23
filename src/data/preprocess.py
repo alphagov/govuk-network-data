@@ -1,13 +1,19 @@
 import re
-from collections import Counter
-
 import numpy as np
 
+"""
 
-# Transform raw SQL BigQuery string to list of page/event tuples
-def clean_tuple(x):
-    # if "http" not in xs else re.sub(r"\"|\'", "", xs)
-    return [re.sub(r"\"|\'", "", xs) for xs in x]
+"""
+
+
+def clean_tuple(pe_str_tuple):
+    """
+    Transform raw SQL BigQuery string to list of page/event tuples
+    :param pe_str_tuple:
+    :return:
+    """
+    # if "http" not in tupes else re.sub(r"\"|\'", "", tupes)
+    return [re.sub(r"\"|\'", "", tupes) for tupes in pe_str_tuple]
 
 
 def bq_journey_to_pe_list(bq_journey_string):
@@ -15,14 +21,15 @@ def bq_journey_to_pe_list(bq_journey_string):
     Split a BigQuery string page1<<eventCategory1<:<eventAction1>>page2<<eventCategory2<:<eventAction2>>... into a
     list of tuples page_event_list = [(page1,eventCategory1<:<eventAction1), (page2,eventCategory2<:<eventAction2),
     ...] The event string eg eventCategory1<:<eventAction1 is further split at a later stage. Nothing is dropped,
-    number of page1<<eventCategory1<:<eventAction1 instances and number of page-event tuples should be equal. :param
-    bq_journey_string: :return: The list of page-event tuples.
+    number of page1<<eventCategory1<:<eventAction1 instances and number of page-event tuples should be equal.
+    :param bq_journey_string:
+    :return: The list of page-event tuples.
     """
+
     bq_journey_string = bq_journey_string.replace(">>iii....", "")
     page_event_list = []
     for hit in bq_journey_string.split(">>"):
-        # split("//")
-
+        # Old delimiter: split("//")
         page_event_tup = clean_tuple(hit.split("<<"))
         if len(page_event_tup) == 2:
             page_event_list.append(tuple(page_event_tup))
@@ -62,8 +69,10 @@ def reindex_pe_list(page_event_list):
 def split_event(event_str):
     """
     Split eventCategory<:<eventAction pair into a tuple. The if conditions are superfluous, there in the case
-    something breaks due to delimiter being present in the str. (rare now) :param event_str: string tuple from
-    page_event_list. :return: tuple(eventCat,EventAct)
+    something breaks due to delimiter being present in the str. (rare now)
+    :param event_str: string tuple from
+    page_event_list.
+    :return: tuple(eventCat,EventAct)
     """
     event_tuple = tuple(event_str.split("<:<"))
     if len(event_tuple) > 2:
@@ -93,43 +102,7 @@ def extract_pe_components(page_event_list, i):
     return hit_list
 
 
-# Counts for events
-def count_event_cat(event_list):
-    """
 
-    :param event_list:
-    :return:
-    """
-    return len(set([cat for cat, _ in event_list]))
-
-
-def count_event_act(event_list, category, action):
-    """
-
-    :param event_list:
-    :param category:
-    :param action:
-    :return:
-    """
-    return [action for cat, action in event_list if cat == category].count(action)
-
-
-def aggregate_event_cat(event_list):
-    """
-
-    :param event_list:
-    :return:
-    """
-    return list(Counter([cat for cat, _ in event_list]).items())
-
-
-def aggregate_event_cat_act(event_list):
-    """
-
-    :param event_list:
-    :return:
-    """
-    return list(Counter([(cat, act) for cat, act in event_list]).items())
 
 
 def collapse_loop(page_list):
@@ -168,22 +141,4 @@ def start_end_subpath_list(subpath_list):
     return subpath_list[0][0], subpath_list[-1][-1]
 
 
-# Loop-related functions
-def has_loop(page_list):
-    """
 
-    :param page_list:
-    :return:
-    """
-    return any(i == j for i, j in zip(page_list, page_list[1:]))
-
-
-# repetitions
-def has_repetition(page_list):
-    """
-    Check if a list of page hits contains a page repetition (A >> B >> A) == True
-    Run on journeys with collapsed loops so stuff like A >> A >> B are not captured as a repetition
-    :param page_list: list of page hits derived from BQ user journey
-    :return: True if there is a repetition
-    """
-    return len(set(page_list)) != len(page_list)
