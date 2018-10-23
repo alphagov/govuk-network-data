@@ -64,23 +64,24 @@ def list_to_dict(metadata_list):
 
 def str_to_dict(metadata_str):
     """
-
+    Transform metadata string eg mobile,desktop,mobile to [(mobile,2),(desktop,1)] dict-like
+    list.
     :param metadata_str:
-    :return:
+    :return: dict-like list of frequencies
     """
     # print(metadata_str)
     return list_to_dict(metadata_str.split(','))
 
 
-def aggregate_dict(x):
+def aggregate_dict(metadata_list):
     """
-
-    :param x:
-    :return:
+    Aggregate over multiple metadata frequency lists, sum up frequencies over course of multiple days.
+    :param metadata_list:
+    :return: dict-like list of frequencies
     """
     metadata_counter = {}
-    for xs in x:
-        for key, value in xs:
+    for meta in metadata_list:
+        for key, value in meta:
             if key not in metadata_counter:
                 metadata_counter[key] = value
             else:
@@ -108,6 +109,12 @@ def zip_aggregate_metadata(user_journey_df):
 
 
 def sequence_preprocess(user_journey_df):
+    """
+    Bulk-execute main input pre-processing functions: from BigQuery journey strings to Page_Event_List to Page_List.
+    PageSequence required for dataframes groupbys/filtering.
+    :param user_journey_df: dataframe
+    :return: no return, columns added in place.
+    """
     logger.info("BQ Sequence string to Page_Event_List...")
     user_journey_df['Page_Event_List'] = user_journey_df['Sequence'].map(prep.bq_journey_to_pe_list)
     logger.info("Page_Event_List to Page_List...")
@@ -118,21 +125,22 @@ def sequence_preprocess(user_journey_df):
 
 def event_preprocess(user_journey_df):
     """
-
-    :param user_journey_df:
-    :return:
+    Bulk-execute event related functions... Run after sequence_preprocess(user_journey_df) so that
+    Page_Event_List column exists
+    :param user_journey_df: dataframe
+    :return: no return, columns added in place.
     """
     logger.info("Page_Event_List to Event_List...")
     user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 1))
-    # print(user_journey_df['Event_List'].iloc[0])
+    logger.info("Computing event-related counts and frequencies...")
     event_counters(user_journey_df)
 
 
 def event_counters(user_journey_df):
     """
-
-    :param user_journey_df:
-    :return:
+    Bulk map functions for event frequency/counts.
+    :param user_journey_df: dataframe
+    :return: no return, columns added in place.
     """
     user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(feat.count_event_cat)
     user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat)
@@ -141,14 +149,16 @@ def event_counters(user_journey_df):
 
 def add_loop_columns(user_journey_df):
     """
-
-    :param user_journey_df:
-    :return:
+    Bulk map functions for event frequency/counts.
+    :param user_journey_df: dataframe
+    :return: no return, columns added in place.
     """
     logger.info("Collapsing loops...")
     user_journey_df['Page_List_NL'] = user_journey_df['Page_List'].map(prep.collapse_loop)
-    logger.info("To string...")
+    # In order to groupby during analysis step
+    logger.info("De-looped lists to string...")
     user_journey_df['Page_Seq_NL'] = user_journey_df['Page_List_NL'].map(lambda x: ">>".join(x))
+    # Count occurrences of de-looped journeys, most generic journey frequency metric.
     logger.info("Aggregating de-looped journey occurrences...")
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
 
@@ -174,7 +184,7 @@ def sliced_groupby_meta(df_slice, depth, multiple_dfs):
 
 def drop_duplicate_rows(df_slice):
     """
-    Drop duplicate rows, if condition is
+    Drop duplicate rows from a dataframe slice.
     :param df_slice:
     :return:
     """
