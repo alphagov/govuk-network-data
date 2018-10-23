@@ -12,31 +12,44 @@ import numpy as np
 import pandas as pd
 
 src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(src,"data"))
-sys.path.append(os.path.join(src,"features"))
+sys.path.append(os.path.join(src, "data"))
+sys.path.append(os.path.join(src, "features"))
 import preprocess as prep
 import build_features as feat
 
-AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
-                     'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
-                     'Times', 'Dates', 'Time_Spent', 'userID']
-#
+# TODO: Integrate in the future
+# AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
+#                      'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
+#                      'Times', 'Dates', 'Time_Spent', 'userID']
+# TODO: Extend with more BigQuery fields. Pre-defined columns will be aggregated
 COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'DeviceCategory', 'TrafficSources',
                                'TrafficMediums', 'NetworkLocations', 'Dates']
-
+# TODO: Extend with more BigQuery fields. Pre-defined columns will be aggregated
 SLICEABLE_COLUMNS = ['Occurrences', 'Languages', 'Locations', 'DeviceCategories', 'DeviceCategory', 'TrafficSources',
                      'TrafficMediums', 'NetworkLocations', 'Dates']
-
+# Columns to drop post-internal processing if DROP_ONE_OFFS is true: these are initialized in order to set up
+# "PageSequence" which is used for journey drops instead of "Sequence" which includes events, hence making journeys
+# overall more infrequent.
 DROPABLE_COLS = ['Page_Event_List', 'Page_List']
-
+# Fewer files to process than available cpus.
 FEWER_THAN_CPU = False
+# Drop journeys occurring once (not in a day, multiple days, governed by DEPTH globals). If false, overrides depth
+# globals and keeps journeys, resulting in massive dataframes (danger zone).
 DROP_ONE_OFFS = False
+# Drop journeys of length 1
 DROP_ONES = False
+# Keep only journeys of length 1
 KEEP_ONES = False
+# Maximum recursive depth for distribution function
 MAX_DEPTH = -1
+# Recursive depth limit for distribution function, so one-off journeys are drop in time.
 DEPTH_LIM = 1
+# Number of available CPUs, governs size of pool/number of daemon worker.
 NUM_CPU = 0
+# If there are many files to be merge, load in/preprocess in batches
 BATCH_SIZE = 3
+# A bit of a magic number, but limits dataframes that can be passed off to workers. If dataframe exceeds this size,
+# switch to sequential execution.
 ROW_LIMIT = 3000000
 
 
@@ -103,7 +116,6 @@ def sequence_preprocess(user_journey_df):
     user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
 
 
-
 def event_preprocess(user_journey_df):
     """
 
@@ -147,7 +159,7 @@ def sliced_groupby_meta(df_slice, depth, multiple_dfs):
     :param df_slice:
     :param depth:
     :param multiple_dfs:
-    :return:
+    :return: no return, mapping and drops happen inplace.
     """
     agg = df_slice.columns[1]
     # One-off
@@ -157,33 +169,31 @@ def sliced_groupby_meta(df_slice, depth, multiple_dfs):
         metadata_gpb = df_slice.groupby('Sequence')[agg].apply(aggregate_dict)
         # logger.info("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
         df_slice[agg] = df_slice['Sequence'].map(metadata_gpb)
-        drop_duplicate_rows(df_slice, multiple_dfs)
+        drop_duplicate_rows(df_slice)
 
 
-def drop_duplicate_rows(df_slice, multiple_dfs):
+def drop_duplicate_rows(df_slice):
     """
-
+    Drop duplicate rows, if condition is
     :param df_slice:
-    :param multiple_dfs:
     :return:
     """
-    if multiple_dfs:
-        bef = df_slice.shape[0]
-        # logger.info("Current # of rows: {}. Dropping duplicate rows..".format(bef))
-        df_slice.drop_duplicates(subset='Sequence', keep='first', inplace=True)
-        after = df_slice.shape[0]
-        logger.info("Dropped {} duplicated rows.".format(bef - after))
+    bef = df_slice.shape[0]
+    # logger.info("Current # of rows: {}. Dropping duplicate rows..".format(bef))
+    df_slice.drop_duplicates(subset='Sequence', keep='first', inplace=True)
+    after = df_slice.shape[0]
+    logger.info("Dropped {} duplicated rows.".format(bef - after))
 
 
-def partition_list(x, chunks):
+def partition_list(dataframe_list, chunks):
     """
 
-    :param x:
+    :param dataframe_list:
     :param chunks:
     :return:
     """
     if chunks > 0:
-        initial = [list(xs) for xs in np.array_split(list(range(len(x))), chunks)]
+        initial = [list(xs) for xs in np.array_split(list(range(len(dataframe_list))), chunks)]
         # print(initial)
         if len(initial) > 1 and not FEWER_THAN_CPU:
             initial = merge_small_partition(initial)
@@ -192,28 +202,29 @@ def partition_list(x, chunks):
         return [[0]]
 
 
-def merge_small_partition(initial):
+def merge_small_partition(partitions):
     """
-
-    :param initial:
+    Merge small partitions of length 1 into previous partition, reduce number of recursive runs.
+    :param partitions:
     :return:
     """
     to_merge = []
-    for element in initial:
-        if len(element) == 1:
-            to_merge.append(element[0])
-            initial.remove(element)
+    for partition in partitions:
+        if len(partition) == 1:
+            to_merge.append(partition[0])
+            partitions.remove(partition)
     if len(to_merge) >= 1:
-        initial[-1].extend(to_merge)
-    return initial
+        partitions[-1].extend(to_merge)
+    return partitions
 
 
 def conditional_pre_gpb_drop(df_occ_slice, df_meta_slice):
     """
-
-    :param df_occ_slice:
-    :param df_meta_slice:
-    :return:
+    Drop samples from metadata dataframe slice depending on already reduced Occurrences slice (occ slice set up as basis
+    for drop because it's the fastest to compute. Only runs if contents df_occ_slice have already been reduced.
+    :param df_occ_slice: list of (file_code, df_occurence_slice) tuples
+    :param df_meta_slice: list of (file_code, df_meta_slice) tuples
+    :return: reduced df_meta_slice
     """
     for df_code_i, df_slice_i in df_occ_slice:
         for df_code_j, df_slice_j in df_meta_slice:
@@ -230,7 +241,7 @@ def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
     :param pool:
     :param dflist:
     :param chunks:
-    :param depth:
+    :param depth: Increases roughly every 4-5 days of data accumulation
     :param additional:
     :return:
     """
@@ -316,7 +327,8 @@ def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
         df_slice['Occurrences'] = df_slice.groupby('Sequence')['Occurrences'].transform('sum')
         if DROP_ONE_OFFS:
             df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
-        drop_duplicate_rows(df_slice, multiple_dfs)
+        if multiple_dfs:
+            drop_duplicate_rows(df_slice)
         # print(DEPTH_LIM, MAX_DEPTH, DROP_INFREQ)
         if (depth >= DEPTH_LIM and MAX_DEPTH >= 2) and DROP_ONE_OFFS:
             bef = df_slice.shape[0]
@@ -564,18 +576,11 @@ if __name__ == "__main__":
     print(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES)
 
     DATA_DIR = os.getenv("DATA_DIR")
-    # DOCUMENTS = os.getenv("DOCUMENTS")
     source_dir = os.path.join(DATA_DIR, args.source_directory)
     dest_dir = os.path.join(DATA_DIR, args.dest_directory)
     final_filename = args.output_filename
     filename_stub = args.filename_stub
 
-    # print(os.listdir(DATA_DIR))
-
-    # print(filename_stub)
-
-    # print(os.listdir(source_dir))
-    # Logger setup
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
     logging.config.fileConfig(LOGGING_CONFIG)
     logger = logging.getLogger('make_dataset')
@@ -583,15 +588,8 @@ if __name__ == "__main__":
     logger.info("Loading data")
 
     to_load = generate_file_list(source_dir, filename_stub)
-    # print(to_load)
-    #
-    # print("batches")
-    # pprint.pprint(compute_batches(to_load, 3))
 
     if not os.path.isdir(dest_dir):
         logging.info("Specified destination directory does not exist, creating...")
 
-    # multiprocess_make(to_load, dest_dir, final_filename + ".csv.gz")
-    # test = [("page1","event1//cat1"),("page2","event2//cat2")]
-    # print(extract_pe_components(test,0))
-    # print(extract_pe_components(test, 1))
+    multiprocess_make(to_load, dest_dir, final_filename + ".csv.gz")
