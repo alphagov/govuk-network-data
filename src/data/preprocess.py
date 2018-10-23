@@ -43,6 +43,7 @@ def bq_journey_to_pe_list(bq_journey_string):
 
 def reindex_pe_list(page_event_list):
     """
+    TODO: not used right now
     Reindex and de-loop page_event_list if necessary. Used when absolute hit position within journey
     needs to be evaluated.
     If that's the case, page_list and event_list generators should be run based on this list, not
