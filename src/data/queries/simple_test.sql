@@ -4,6 +4,7 @@ SELECT
   Actions_Length,
   GROUP_CONCAT(TrafficSource,",") AS TrafficSources,
   GROUP_CONCAT(TrafficMedium,",") AS TrafficMediums,
+  Date,
   Sequence
 FROM (
   SELECT
