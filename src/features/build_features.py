@@ -3,7 +3,7 @@ from collections import Counter
 
 def has_loop(page_list):
     """
-    Check if a list of page hits contains an adjacent page loop (A >> A >> B) == True
+    Check if a list of page hits contains an adjacent page loop (A >> A >> B) == True.
     :param page_list: list of page hits derived from BQ user journey
     :return: True if there is a loop
     """
@@ -12,8 +12,9 @@ def has_loop(page_list):
 
 def has_repetition(page_list):
     """
-    Check if a list of page hits contains a page repetition (A >> B >> A) == True
-    Run on journeys with collapsed loops so stuff like A >> A >> B are not captured as a repetition
+    Check if a list of page hits contains a page repetition (A >> B >> A) == True.
+    Run on journeys with collapsed loops so stuff like A >> A >> B are not captured as a repetition.
+    Similar to cycles/triangles, but from a flat perspective.
     :param page_list: list of page hits derived from BQ user journey
     :return: True if there is a repetition
     """
