@@ -7,3 +7,7 @@ def test_bq_journey_to_pe_list():
  ('page2', 'eventCategory2<:<eventAction2')]
 
 
+def test_split_event():
+    assert preprocess.split_event("eventCategory<:<eventAction") == ('eventCategory', 'eventAction')
+
+
