@@ -12,27 +12,29 @@ def clean_tuple(x):
 
 def bq_journey_to_pe_list(bq_journey_string):
     """
-
-    :param bq_journey_string:
-    :return:
+    Split a BigQuery string page1<<eventCategory1<:<eventAction1>>page2<<eventCategory2<:<eventAction2>>... into a
+    list of tuples page_event_list = [(page1,eventCategory1<:<eventAction1), (page2,eventCategory2<:<eventAction2),
+    ...] The event string eg eventCategory1<:<eventAction1 is further split at a later stage. Nothing is dropped,
+    number of page1<<eventCategory1<:<eventAction1 instances and number of page-event tuples should be equal. :param
+    bq_journey_string: :return: The list of page-event tuples.
     """
     bq_journey_string = bq_journey_string.replace(">>iii....", "")
-    journey_list = []
+    page_event_list = []
     for hit in bq_journey_string.split(">>"):
         # split("//")
 
         page_event_tup = clean_tuple(hit.split("<<"))
         if len(page_event_tup) == 2:
-            journey_list.append(tuple(page_event_tup))
+            page_event_list.append(tuple(page_event_tup))
         else:
             print("error")
             print(bq_journey_string)
             print(page_event_tup)
             # if any(["http" in tup for tup in page_event_tup]):
-            #     journey_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
+            #     page_event_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
             # else:
-            #     journey_list.append(("::".join(page_event_tup[:-1]), page_event_tup[-1]))
-    return journey_list
+            #     page_event_list.append(("::".join(page_event_tup[:-1]), page_event_tup[-1]))
+    return page_event_list
 
 
 def reindex_pe_list(page_event_list):
@@ -58,6 +60,11 @@ def reindex_pe_list(page_event_list):
 
 
 def split_event(event_str):
+    """
+    Split eventCategory<:<eventAction pair into a tuple. The if conditions are superfluous, there in the case
+    something breaks due to delimiter being present in the str. (rare now) :param event_str: string tuple from
+    page_event_list. :return: tuple(eventCat,EventAct)
+    """
     event_tuple = tuple(event_str.split("<:<"))
     if len(event_tuple) > 2:
         print("more than two")
