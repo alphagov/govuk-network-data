@@ -4,11 +4,17 @@ import argparse
 import itertools
 import logging.config
 import os
+import sys
+from collections import Counter
 from multiprocessing import Pool, cpu_count
 
+import numpy as np
 import pandas as pd
 
-from src.data.preprocess import *
+sys.path.append('/Users/felisialoukou/Documents/govuk-network-data/src/data')
+sys.path.append('/Users/felisialoukou/Documents/govuk-network-data/src/features')
+import preprocess as prep
+import build_features as feat
 
 AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
                      'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
@@ -76,9 +82,9 @@ def zip_aggregate_metadata(user_journey_df):
 
 def sequence_preprocess(user_journey_df):
     logger.info("BQ Sequence string to Page_Event_List...")
-    user_journey_df['Page_Event_List'] = user_journey_df['Sequence'].map(bq_journey_to_pe_list)
+    user_journey_df['Page_Event_List'] = user_journey_df['Sequence'].map(prep.bq_journey_to_pe_list)
     logger.info("Page_Event_List to Page_List...")
-    user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 0))
+    user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 0))
     # print(user_journey_df['Page_List'].iloc[0])
     user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
     # user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
@@ -86,15 +92,15 @@ def sequence_preprocess(user_journey_df):
 
 def event_preprocess(user_journey_df):
     logger.info("Page_Event_List to Event_List...")
-    user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: extract_pe_components(x, 1))
+    user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 1))
     # print(user_journey_df['Event_List'].iloc[0])
     event_counters(user_journey_df)
 
 
 def event_counters(user_journey_df):
-    user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(count_event_cat)
-    user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(aggregate_event_cat)
-    user_journey_df['Event_cat_act_agg'] = user_journey_df['Event_List'].map(aggregate_event_cat_act)
+    user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(feat.count_event_cat)
+    user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat)
+    user_journey_df['Event_cat_act_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat_act)
 
 
 def add_loop_columns(user_journey_df):
@@ -104,7 +110,7 @@ def add_loop_columns(user_journey_df):
     :return:
     """
     logger.info("Collapsing loops...")
-    user_journey_df['Page_List_NL'] = user_journey_df['Page_List'].map(collapse_loop)
+    user_journey_df['Page_List_NL'] = user_journey_df['Page_List'].map(prep.collapse_loop)
     logger.info("To string...")
     user_journey_df['Page_Seq_NL'] = user_journey_df['Page_List_NL'].map(lambda x: ">>".join(x))
     logger.info("Aggregating de-looped journey occurrences...")
