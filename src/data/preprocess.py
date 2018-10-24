@@ -74,17 +74,25 @@ def split_event(event_str):
     something breaks due to delimiter being present in the str. (rare now)
     :param event_str: string tuple from
     page_event_list.
+    EVENT::NULL::NULL
+   (EVENT_NULL,EVENT_NULL)
     :return: tuple(eventCat,EventAct)
     """
     event_tuple = tuple(event_str.split("<:<"))
-    if len(event_tuple) > 2:
+    if len(event_tuple) == 2:
+        return event_tuple
+    if len(event_tuple) == 3:
+        if "NULL" in event_tuple[1]:
+            return tuple((event_tuple[0] + "_" + event_tup for event_tup in event_tuple[1:]))
+        else:
+            return tuple(event_tuple[1:])
+    if len(event_tuple) > 3:
         print("Event tuple has more than two elements:", event_tuple)
         print("Original:", event_str)
         # event_tuple = (event_tuple[0], "<<".join(event_tuple[1:]))
-    elif len(event_tuple) == 1:
+    if len(event_tuple) == 2:
         print("Event tuple has only one element:", event_tuple)
-        print("Original:",event_str)
-    return event_tuple
+        print("Original:", event_str)
 
 
 def extract_pe_components(page_event_list, i):
@@ -97,7 +105,7 @@ def extract_pe_components(page_event_list, i):
     hit_list = []
     # page_event is a tuple
     for page_event in page_event_list:
-        if i == 0 and page_event[1] == "NULL<:<NULL":
+        if i == 0 and page_event[1] == "PAGE<:<NULL<:<NULL":
             hit_list.append(page_event[0])
         elif i == 1:
             hit_list.append(split_event(page_event[i]))
