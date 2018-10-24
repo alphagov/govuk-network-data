@@ -26,8 +26,8 @@ def test_collapse_loop():
 
 def test_start_end_page():
     assert preprocess.start_end_page(["page1","page1", "page2", "page3", "page1"]) == ("page1", "page1")
-    # is this intended? we would of dropped one page journies?
-    assert preprocess.start_end_page(["page1"]) == ("page1", "page1")
+    # if page_list length is one then return just that page, bug fix
+    assert preprocess.start_end_page(["page1"]) == ("page1")
 
 def test_subpaths_aka_edges_from_list():
     assert preprocess.subpaths_from_list(["page1","page1", "page2", "page3", "page1"]) == [['page1', 'page1'],
