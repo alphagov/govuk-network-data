@@ -51,6 +51,7 @@ BATCH_SIZE = 3
 # A bit of a magic number, but limits dataframes that can be passed off to workers. If dataframe exceeds this size,
 # switch to sequential execution.
 ROW_LIMIT = 3000000
+SINGLE = False
 
 
 def list_to_dict(metadata_list):
@@ -232,7 +233,7 @@ def conditional_pre_gpb_drop(df_occ_slice, df_meta_slice):
     """
     Drop samples from metadata dataframe slice depending on already reduced Occurrences slice (occ slice set up as basis
     for drop because it's the fastest to compute. Only runs if contents df_occ_slice have already been reduced.
-    :param df_occ_slice: list of (file_code, df_occurence_slice) tuples
+    :param df_occ_slice: list of (file_code, df_occurrence_slice) tuples
     :param df_meta_slice: list of (file_code, df_meta_slice) tuples
     :return: reduced df_meta_slice
     """
@@ -278,7 +279,7 @@ def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
         multi_dfs = [multi_dfs[i] for i, _ in slices_occ]
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
-        if (depth >= DEPTH_LIM and MAX_DEPTH >= 2) and DROP_ONE_OFFS:
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE)and DROP_ONE_OFFS:
             logger.info("conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
@@ -340,7 +341,7 @@ def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
         if multiple_dfs:
             drop_duplicate_rows(df_slice)
         # print(DEPTH_LIM, MAX_DEPTH, DROP_INFREQ)
-        if (depth >= DEPTH_LIM and MAX_DEPTH >= 2) and DROP_ONE_OFFS:
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE)and DROP_ONE_OFFS:
             bef = df_slice.shape[0]
             # logger.info("Current # of rows: {}. Dropping journeys occurring only once..".format(bef))
             df_slice = df_slice[df_slice.Page_Seq_Occurrences > 1]
@@ -439,13 +440,13 @@ def multiprocess_make(files, destination, merged_filename):
             df = process(batch, pool, num_chunks, df)
 
     print(df.iloc[0])
-    logger.info("")
-
     sequence_preprocess(df)
     event_preprocess(df)
     add_loop_columns(df)
-
+    logger.info("Dataframe columns: {}", [col for col in df.columns])
     logger.info("Shape: {}".format(df.shape))
+    print("Example final row:\n", df.iloc[0])
+
     path_to_file = os.path.join(destination, merged_filename)
     logger.info("Saving at: {}".format(path_to_file))
     df.to_csv(path_to_file, compression='gzip', index=False)
@@ -506,20 +507,23 @@ def compute_batches(files, batchsize):
 
 def read_file(filename):
     """
-
+    Initialize dataframe using specified filename, do some initial prep if necessary depending on global vars
+    (specified via arguments)
     :param filename:
     :return:
     """
     logging.info("Reading: {}".format(filename))
     df = pd.read_csv(filename, compression="gzip")
     # print(df.shape)
+    # Drop journeys of length 1
     if DROP_ONES:
         print("dropping ones")
         df.query("PageSeq_Length > 1", inplace=True)
+    # Keep ONLY journeys of length 1
     elif KEEP_ONES:
         print("keeping only ones")
         df.query("PageSeq_Length == 1", inplace=True)
-    # print(df.shape)
+    # If
     if DROP_ONE_OFFS:
         sequence_preprocess(df)
         df.drop(DROPABLE_COLS, axis=1, inplace=True)
@@ -586,8 +590,8 @@ if __name__ == "__main__":
     print(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES)
 
     DATA_DIR = os.getenv("DATA_DIR")
-    source_dir = os.path.join(DATA_DIR, args.source_directory)
-    dest_dir = os.path.join(DATA_DIR, args.dest_directory)
+    source_directory = os.path.join(DATA_DIR, args.source_directory)
+    dest_directory = os.path.join(DATA_DIR, args.dest_directory)
     final_filename = args.output_filename
     filename_stub = args.filename_stub
 
@@ -597,9 +601,11 @@ if __name__ == "__main__":
 
     logger.info("Loading data")
 
-    to_load = generate_file_list(source_dir, filename_stub)
+    to_load = generate_file_list(source_directory, filename_stub)
+    if len(to_load) == 1:
+        SINGLE = True
 
-    if not os.path.isdir(dest_dir):
+    if not os.path.isdir(dest_directory):
         logging.info("Specified destination directory does not exist, creating...")
 
-    multiprocess_make(to_load, dest_dir, final_filename + ".csv.gz")
+    multiprocess_make(to_load, dest_directory, final_filename + ".csv.gz")
