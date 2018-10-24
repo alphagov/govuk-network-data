@@ -29,3 +29,16 @@ def test_start_end_page():
     # is this intended? we would of dropped one page journies?
     assert preprocess.start_end_page(["page1"]) == ("page1", "page1")
 
+def test_subpaths_aka_edges_from_list():
+    assert preprocess.subpaths_from_list(["page1","page1", "page2", "page3", "page1"]) == [['page1', 'page1'],
+ ['page1', 'page2'],
+ ['page2', 'page3'],
+ ['page3', 'page1']]
+
+def test_start_page():
+    assert preprocess.start_page(["page1", "page2", "page3"]) == "page1"
+
+# these are undergoing name changes, will fix after merge
+#def test_end_page():
+#    assert preprocess.end_page(["page1", "page2", "page3"]) == "page1"
+
