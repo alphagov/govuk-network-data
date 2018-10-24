@@ -4,9 +4,10 @@ import numpy as np
 
 def clean_tuple(pe_str_tuple):
     """
-    Transform raw SQL BigQuery string to list of page/event tuples
-    :param pe_str_tuple:
-    :return:
+    TODO: not sure why this is here... maybe quotes break things
+    Transform raw SQL BigQuery string to list of page/event tuples:
+    :param pe_str_tuple: a tuple, ideally length 2 (page1,eventCategory1<:<eventAction1)
+    :return: tuple with quotes removed from each element
     """
     # if "http" not in tupes else re.sub(r"\"|\'", "", tupes)
     return [re.sub(r"\"|\'", "", tupes) for tupes in pe_str_tuple]
@@ -30,10 +31,13 @@ def bq_journey_to_pe_list(bq_journey_string):
         if len(page_event_tup) == 2:
             page_event_list.append(tuple(page_event_tup))
         else:
-            # Keep for debugging
-            print("error")
-            print(bq_journey_string)
-            print(page_event_tup)
+            # TODO remove in future
+            print("Error, tuple split generated too many elements.")
+            print("Overall BigQuery string:", bq_journey_string)
+            print("Too long page_event tuple:", page_event_tup)
+            # Add in dummy variable for debugging and to avoid empty lists
+            page_event_list.append(("page1","eventCategory<:<eventAction"))
+            # TODO remove in future
             # if any(["http" in tup for tup in page_event_tup]):
             #     page_event_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
             # else:
@@ -74,12 +78,12 @@ def split_event(event_str):
     """
     event_tuple = tuple(event_str.split("<:<"))
     if len(event_tuple) > 2:
-        print("more than two")
-        print(event_tuple)
+        print("Event tuple has more than two elements:", event_tuple)
+        print("Original:", event_str)
         # event_tuple = (event_tuple[0], "<<".join(event_tuple[1:]))
-    if len(event_tuple) == 1:
-        print(event_str)
-        print("this is a one", event_tuple)
+    elif len(event_tuple) == 1:
+        print("Event tuple has only one element:", event_tuple)
+        print("Original:",event_str)
     return event_tuple
 
 
@@ -87,16 +91,15 @@ def extract_pe_components(page_event_list, i):
     """
     Extract page_list or event_list from page_event_list
     :param page_event_list: list of (page,event) tuples
-    :param i: 0 for page_list 1 for event_list
+    :param i: 0 for page_list 1, for event_list
     :return: appropriate hit_list
     """
     hit_list = []
     # page_event is a tuple
     for page_event in page_event_list:
-        if i == 0:
-            if page_event[1] == "NULL<:<NULL":
-                hit_list.append(page_event[0])
-        else:
+        if i == 0 and page_event[1] == "NULL<:<NULL":
+            hit_list.append(page_event[0])
+        elif i == 1:
             hit_list.append(split_event(page_event[i]))
     return hit_list
 
@@ -117,7 +120,10 @@ def start_end_page(page_list):
     :param page_list: list of page hits
     :return: start and end nodes
     """
-    return page_list[0], page_list[-1]
+    if len(page_list) == 1:
+        return page_list[0]
+    else:
+        return page_list[0], page_list[-1]
 
 
 def subpaths_from_list(page_list):
