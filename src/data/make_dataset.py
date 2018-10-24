@@ -121,6 +121,7 @@ def sequence_preprocess(user_journey_df):
     logger.info("Page_Event_List to Page_List...")
     user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 0))
     logger.info("Page_List to PageSequence...")
+    # TODO: Remove condition + internal PageSequence post-testing/debugging.
     if 'PageSequence' not in user_journey_df.columns:
         user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
     else:
