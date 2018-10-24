@@ -12,9 +12,9 @@ FROM (
   FROM (
     SELECT
       CONCAT(fullVisitorId,"-",CAST(visitId AS STRING),"-",CAST(visitNumber AS STRING)) AS sessionId,
-      STRING_AGG(CONCAT(pagePath,"<<",CONCAT(IFNULL(eventCategory, "NULL"),"<:<",IFNULL(eventAction, "NULL"))),
+      STRING_AGG(CONCAT(pagePath,"<<",CONCAT(htype,"<:<",IFNULL(eventCategory, "NULL"),"<:<",IFNULL(eventAction, "NULL"))),
         ">>") OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS Sequence,
-      STRING_AGG(IF(htype = 'PAGE',pagePath,""),">>") OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS PageSequence,
+      STRING_AGG(IF(htype = 'PAGE',pagePath,NULL),">>") OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS PageSequence,
       DeviceCategory,
       Date,
       COUNT(*) OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS Actions_Length,
