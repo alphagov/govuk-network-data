@@ -19,3 +19,7 @@ def test_extract_pe_components():
  ('eventCategory2', 'eventAction1')]
     # should this return an empty list? Potential bug?
     assert preprocess.extract_pe_components([('page1', 'eventCategory1<:<eventAction1'), ('page2', 'eventCategory2<:<eventAction2'), ('page3', 'eventCategory2<:<eventAction1')], i = 0) == []
+
+def test_collapse_loop():
+    assert preprocess.collapse_loop(["page1","page1", "page2", "page3", "page1"]) == ["page1", "page2", "page3", "page1"]
+    assert preprocess.collapse_loop(["page1","page1", "page2", "page1", "page1"]) == ["page1", "page2", "page1"]
