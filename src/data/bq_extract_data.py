@@ -75,9 +75,9 @@ if __name__ == "__main__":
     parser.add_argument('--standard', action='store_const', const="standard")
     args = parser.parse_args()
     if args.standard is not None:
-        print("standard")
         dialect = "standard"
-
+    else:
+        dialect = "legacy"
     # Logger setup
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
     logging.config.fileConfig(LOGGING_CONFIG)
