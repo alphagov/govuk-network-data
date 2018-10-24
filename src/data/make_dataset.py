@@ -121,7 +121,10 @@ def sequence_preprocess(user_journey_df):
     logger.info("Page_Event_List to Page_List...")
     user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 0))
     logger.info("Page_List to PageSequence...")
-    user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
+    if 'PageSequence' not in user_journey_df.columns:
+        user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
+    else:
+        user_journey_df['PageSequence_internal'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
 
 
 def event_preprocess(user_journey_df):
@@ -443,7 +446,7 @@ def multiprocess_make(files, destination, merged_filename):
     sequence_preprocess(df)
     event_preprocess(df)
     add_loop_columns(df)
-    logger.info("Dataframe columns: {}", [col for col in df.columns])
+    logger.info("Dataframe columns: {}".format(df.columns))
     logger.info("Shape: {}".format(df.shape))
     print("Example final row:\n", df.iloc[0])
 
