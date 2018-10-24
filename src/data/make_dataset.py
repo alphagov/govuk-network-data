@@ -121,7 +121,11 @@ def sequence_preprocess(user_journey_df):
     logger.info("Page_Event_List to Page_List...")
     user_journey_df['Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 0))
     logger.info("Page_List to PageSequence...")
-    user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
+    # TODO: Remove condition + internal PageSequence post-testing/debugging.
+    if 'PageSequence' not in user_journey_df.columns:
+        user_journey_df['PageSequence'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
+    else:
+        user_journey_df['PageSequence_internal'] = user_journey_df['Page_List'].map(lambda x: ">>".join(x))
 
 
 def event_preprocess(user_journey_df):
@@ -279,7 +283,7 @@ def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
         multi_dfs = [multi_dfs[i] for i, _ in slices_occ]
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
-        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE)and DROP_ONE_OFFS:
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             logger.info("conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
@@ -341,7 +345,7 @@ def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
         if multiple_dfs:
             drop_duplicate_rows(df_slice)
         # print(DEPTH_LIM, MAX_DEPTH, DROP_INFREQ)
-        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE)and DROP_ONE_OFFS:
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             bef = df_slice.shape[0]
             # logger.info("Current # of rows: {}. Dropping journeys occurring only once..".format(bef))
             df_slice = df_slice[df_slice.Page_Seq_Occurrences > 1]
@@ -443,7 +447,7 @@ def multiprocess_make(files, destination, merged_filename):
     sequence_preprocess(df)
     event_preprocess(df)
     add_loop_columns(df)
-    logger.info("Dataframe columns: {}", [col for col in df.columns])
+    logger.info("Dataframe columns: {}".format(df.columns))
     logger.info("Shape: {}".format(df.shape))
     print("Example final row:\n", df.iloc[0])
 
@@ -610,3 +614,4 @@ if __name__ == "__main__":
         logging.info("Specified destination directory does not exist, creating...")
 
     multiprocess_make(to_load, dest_directory, final_filename + ".csv.gz")
+
