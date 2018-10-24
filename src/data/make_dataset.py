@@ -613,9 +613,4 @@ if __name__ == "__main__":
         logging.info("Specified destination directory does not exist, creating...")
 
     multiprocess_make(to_load, dest_directory, final_filename + ".csv.gz")
-    # event_list = [('PAGE_NULL', 'PAGE_NULL'),
-    #               ('EVENT_NULL', 'EVENT_NULL'),
-    #               ('eventCategory', 'eventAction'),
-    #               ('NULL', 'NULL'),
-    #               ('eventCategory', 'eventAction')]
-    # print(feat.aggregate_event_cat_act(event_list))
+
