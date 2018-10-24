@@ -525,8 +525,9 @@ def read_file(filename):
         df.query("PageSeq_Length == 1", inplace=True)
     # If
     if DROP_ONE_OFFS:
-        sequence_preprocess(df)
-        df.drop(DROPABLE_COLS, axis=1, inplace=True)
+        if "PageSequence" not in df.columns:
+            sequence_preprocess(df)
+            df.drop(DROPABLE_COLS, axis=1, inplace=True)
     return df
 
 
