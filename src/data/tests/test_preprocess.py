@@ -47,3 +47,8 @@ def test_start_end_subpath_list():
  ['page2', 'page3'],
  ['page3', 'page1']]) == ("page1", "page1")
 
+def test_start_end_edges_subpath_list():
+    assert preprocess.start_end_edges_subpath_list([['page1', 'page1'],
+ ['page1', 'page2'],
+ ['page2', 'page3'],
+ ['page3', 'page1']]) == (['page1', 'page1'], ['page3', 'page1'])
