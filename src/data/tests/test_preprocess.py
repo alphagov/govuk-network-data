@@ -38,7 +38,12 @@ def test_subpaths_aka_edges_from_list():
 def test_start_page():
     assert preprocess.start_page(["page1", "page2", "page3"]) == "page1"
 
-# these are undergoing name changes, will fix after merge
-#def test_end_page():
-#    assert preprocess.end_page(["page1", "page2", "page3"]) == "page1"
+def test_end_page():
+    assert preprocess.end_page(["page1", "page2", "page3"]) == "page3"
+
+def test_start_end_subpath_list():
+    assert preprocess.start_end_subpath_list([['page1', 'page1'],
+ ['page1', 'page2'],
+ ['page2', 'page3'],
+ ['page3', 'page1']]) == ("page1", "page1")
 
