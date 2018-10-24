@@ -1,42 +1,53 @@
 import re
-from collections import Counter
-
 import numpy as np
 
 
-# Transform raw SQL BigQuery string to list of page/event tuples
-def clean_tuple(x):
-    # if "http" not in xs else re.sub(r"\"|\'", "", xs)
-    return [re.sub(r"\"|\'", "", xs) for xs in x]
+def clean_tuple(pe_str_tuple):
+    """
+    TODO: not sure why this is here... maybe quotes break things
+    Transform raw SQL BigQuery string to list of page/event tuples:
+    :param pe_str_tuple: a tuple, ideally length 2 (page1,eventCategory1<:<eventAction1)
+    :return: tuple with quotes removed from each element
+    """
+    # if "http" not in tupes else re.sub(r"\"|\'", "", tupes)
+    return [re.sub(r"\"|\'", "", tupes) for tupes in pe_str_tuple]
 
 
 def bq_journey_to_pe_list(bq_journey_string):
     """
-
+    Split a BigQuery string page1<<eventCategory1<:<eventAction1>>page2<<eventCategory2<:<eventAction2>>... into a
+    list of tuples page_event_list = [(page1,eventCategory1<:<eventAction1), (page2,eventCategory2<:<eventAction2),
+    ...] The event string eg eventCategory1<:<eventAction1 is further split at a later stage. Nothing is dropped,
+    number of page1<<eventCategory1<:<eventAction1 instances and number of page-event tuples should be equal.
     :param bq_journey_string:
-    :return:
+    :return: The list of page-event tuples.
     """
+    # TODO: fix line below, for now it replaces string in a weird /search query within journey (uncommon)
     bq_journey_string = bq_journey_string.replace(">>iii....", "")
-    journey_list = []
+    page_event_list = []
     for hit in bq_journey_string.split(">>"):
-        # split("//")
-
+        # Old delimiter: split("//")
         page_event_tup = clean_tuple(hit.split("<<"))
         if len(page_event_tup) == 2:
-            journey_list.append(tuple(page_event_tup))
+            page_event_list.append(tuple(page_event_tup))
         else:
-            print("error")
-            print(bq_journey_string)
-            print(page_event_tup)
+            # TODO remove in future
+            print("Error, tuple split generated too many elements.")
+            print("Overall BigQuery string:", bq_journey_string)
+            print("Too long page_event tuple:", page_event_tup)
+            # Add in dummy variable for debugging and to avoid empty lists
+            page_event_list.append(("page1","eventCategory<:<eventAction"))
+            # TODO remove in future
             # if any(["http" in tup for tup in page_event_tup]):
-            #     journey_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
+            #     page_event_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
             # else:
-            #     journey_list.append(("::".join(page_event_tup[:-1]), page_event_tup[-1]))
-    return journey_list
+            #     page_event_list.append(("::".join(page_event_tup[:-1]), page_event_tup[-1]))
+    return page_event_list
 
 
 def reindex_pe_list(page_event_list):
     """
+    TODO: not used right now
     Reindex and de-loop page_event_list if necessary. Used when absolute hit position within journey
     needs to be evaluated.
     If that's the case, page_list and event_list generators should be run based on this list, not
@@ -58,78 +69,46 @@ def reindex_pe_list(page_event_list):
 
 
 def split_event(event_str):
+    """
+    Split eventCategory<:<eventAction pair into a tuple. The if conditions are superfluous, there in the case
+    something breaks due to delimiter being present in the str. (rare now)
+    :param event_str: string tuple from
+    page_event_list.
+    :return: tuple(eventCat,EventAct)
+    """
     event_tuple = tuple(event_str.split("<:<"))
     if len(event_tuple) > 2:
-        print("more than two")
-        print(event_tuple)
+        print("Event tuple has more than two elements:", event_tuple)
+        print("Original:", event_str)
         # event_tuple = (event_tuple[0], "<<".join(event_tuple[1:]))
-    if len(event_tuple) == 1:
-        print(event_str)
-        print("this is a one", event_tuple)
+    elif len(event_tuple) == 1:
+        print("Event tuple has only one element:", event_tuple)
+        print("Original:",event_str)
     return event_tuple
 
 
 def extract_pe_components(page_event_list, i):
     """
-
-    :param page_event_list:
-    :param i:
-    :return:
+    Extract page_list or event_list from page_event_list
+    :param page_event_list: list of (page,event) tuples
+    :param i: 0 for page_list 1, for event_list
+    :return: appropriate hit_list
     """
     hit_list = []
+    # page_event is a tuple
     for page_event in page_event_list:
-        if i == 0:
-            if page_event[1] == "NULL<:<NULL":
-                hit_list.append(page_event[0])
-        else:
+        if i == 0 and page_event[1] == "NULL<:<NULL":
+            hit_list.append(page_event[0])
+        elif i == 1:
             hit_list.append(split_event(page_event[i]))
     return hit_list
 
 
-# Counts for events
-def count_event_cat(event_list):
-    """
-
-    :param event_list:
-    :return:
-    """
-    return len(set([cat for cat, _ in event_list]))
-
-
-def count_event_act(event_list, category, action):
-    """
-
-    :param event_list:
-    :param category:
-    :param action:
-    :return:
-    """
-    return [action for cat, action in event_list if cat == category].count(action)
-
-
-def aggregate_event_cat(event_list):
-    """
-
-    :param event_list:
-    :return:
-    """
-    return list(Counter([cat for cat, _ in event_list]).items())
-
-
-def aggregate_event_cat_act(event_list):
-    """
-
-    :param event_list:
-    :return:
-    """
-    return list(Counter([(cat, act) for cat, act in event_list]).items())
-
-
 def collapse_loop(page_list):
     """
-
-    :param page_list:
-    :return:
+    Remove A>>A>>B page loops from page_list. Saved as new dataframe column.
+    :param page_list: the list of pages to de-loop
+    :return: de-loop page list
     """
     return [node for i, node in enumerate(page_list) if i == 0 or node != page_list[i - 1]]
 
@@ -137,46 +116,56 @@ def collapse_loop(page_list):
 # Network things, should probably be moved somewhere else
 def start_end_page(page_list):
     """
-
-    :param page_list:
-    :return:
+    Find start and end pages (nodes) in a list of page hits
+    :param page_list: list of page hits
+    :return: start and end nodes
     """
-    return page_list[0], page_list[-1]
+    if len(page_list) == 1:
+        return page_list[0]
+    else:
+        return page_list[0], page_list[-1]
 
 
 def subpaths_from_list(page_list):
     """
-
-    :param page_list:
-    :return:
+    Build node pairs (edges) from a list of page hits
+    :param page_list: list of page hits
+    :return: list of all possible node pairs
     """
     return [[page, page_list[i + 1]] for i, page in enumerate(page_list) if i < len(page_list) - 1]
 
 
 def start_page(page_list):
+    """
+    First page/node in a list of page hits
+    :param page_list: list of page hits
+    :return: First page
+    """
     return page_list[0]
 
 
+def end_page(page_list):
+    """
+    Last page/node in a list of page hits
+    :param page_list: list of page hits
+    :return: last page
+    """
+    return page_list[-1]
+
+
 def start_end_subpath_list(subpath_list):
+    """
+    First/last page from list of node pairs
+    :param subpath_list: list of node pairs
+    :return: first and last page
+    """
     return subpath_list[0][0], subpath_list[-1][-1]
 
 
-# Loop-related functions
-def has_loop(page_list):
+def start_end_edges_subpath_list(subpath_list):
     """
-
-    :param page_list:
-    :return:
+    First/last node pairs (edges) from list of node pairs
+    :param subpath_list: list of node pairs
+    :return: first and last node pairs
     """
-    return any(i == j for i, j in zip(page_list, page_list[1:]))
-
-
-# repetitions
-def has_repetition(page_list):
-    """
-    Check if a list of page hits contains a page repetition (A >> B >> A) == True
-    Run on journeys with collapsed loops so stuff like A >> A >> B are not captured as a repetition
-    :param page_list: list of page hits derived from BQ user journey
-    :return: True if there is a repetition
-    """
-    return len(set(page_list)) != len(page_list)
+    return subpath_list[0], subpath_list[-1]
