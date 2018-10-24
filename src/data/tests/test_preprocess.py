@@ -23,3 +23,9 @@ def test_extract_pe_components():
 def test_collapse_loop():
     assert preprocess.collapse_loop(["page1","page1", "page2", "page3", "page1"]) == ["page1", "page2", "page3", "page1"]
     assert preprocess.collapse_loop(["page1","page1", "page2", "page1", "page1"]) == ["page1", "page2", "page1"]
+
+def test_start_end_page():
+    assert preprocess.start_end_page(["page1","page1", "page2", "page3", "page1"]) == ("page1", "page1")
+    # is this intended? we would of dropped one page journies?
+    assert preprocess.start_end_page(["page1"]) == ("page1", "page1")
+
