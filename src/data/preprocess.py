@@ -36,7 +36,8 @@ def bq_journey_to_pe_list(bq_journey_string):
             print("Overall BigQuery string:", bq_journey_string)
             print("Too long page_event tuple:", page_event_tup)
             # Add in dummy variable for debugging and to avoid empty lists
-            page_event_list.append(("page1","eventCategory<:<eventAction"))
+            # Useful for inspecting real data, uncomment if desired
+            # page_event_list.append(("page1","eventCategory<:<eventAction"))
             # TODO remove in future
             # if any(["http" in tup for tup in page_event_tup]):
             #     page_event_list.append((page_event_tup[0], "::".join(page_event_tup[1:])))
@@ -163,7 +164,7 @@ def end_page(page_list):
 
 def start_end_subpath_list(subpath_list):
     """
-    First/last page from list of node pairs
+    First and last page from list of node pairs
     :param subpath_list: list of node pairs
     :return: first and last page
     """
