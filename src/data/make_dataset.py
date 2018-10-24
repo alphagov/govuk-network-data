@@ -282,7 +282,7 @@ def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
         multi_dfs = [multi_dfs[i] for i, _ in slices_occ]
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
-        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE)and DROP_ONE_OFFS:
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             logger.info("conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
@@ -344,7 +344,7 @@ def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
         if multiple_dfs:
             drop_duplicate_rows(df_slice)
         # print(DEPTH_LIM, MAX_DEPTH, DROP_INFREQ)
-        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE)and DROP_ONE_OFFS:
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             bef = df_slice.shape[0]
             # logger.info("Current # of rows: {}. Dropping journeys occurring only once..".format(bef))
             df_slice = df_slice[df_slice.Page_Seq_Occurrences > 1]
@@ -613,3 +613,9 @@ if __name__ == "__main__":
         logging.info("Specified destination directory does not exist, creating...")
 
     multiprocess_make(to_load, dest_directory, final_filename + ".csv.gz")
+    # event_list = [('PAGE_NULL', 'PAGE_NULL'),
+    #               ('EVENT_NULL', 'EVENT_NULL'),
+    #               ('eventCategory', 'eventAction'),
+    #               ('NULL', 'NULL'),
+    #               ('eventCategory', 'eventAction')]
+    # print(feat.aggregate_event_cat_act(event_list))
