@@ -170,11 +170,12 @@ def add_loop_columns(user_journey_df):
 
 def sliced_groupby_meta(df_slice, depth, multiple_dfs):
     """
-
-    :param df_slice:
-    :param depth:
-    :param multiple_dfs:
-    :return: no return, mapping and drops happen inplace.
+    Aggregate specified metadata column. If it's the first recursive run, transform aggregate metadata string to a
+    dict-like list.
+    :param df_slice: specified metadata column (refer to AGGREGATE_COLUMNS values)
+    :param depth: (int) recursive call tracker, depth = 0 indicates first recursive call
+    :param multiple_dfs: (boolean) indicates whether many dfs have been merged and require grouping by
+    :return: no return, mapping and drops happen inplace on df_slice.
     """
     agg = df_slice.columns[1]
     # One-off
@@ -202,10 +203,10 @@ def drop_duplicate_rows(df_slice):
 
 def partition_list(dataframe_list, chunks):
     """
-
-    :param dataframe_list:
-    :param chunks:
-    :return:
+    Build a list of partitions from a list of dataframes. Based on indices.
+    :param dataframe_list: list of dataframes
+    :param chunks: number of indices lists to generate, len(partition_list)
+    :return: partition list, list of lists containing indices
     """
     if chunks > 0:
         initial = [list(xs) for xs in np.array_split(list(range(len(dataframe_list))), chunks)]
@@ -250,15 +251,15 @@ def conditional_pre_gpb_drop(df_occ_slice, df_meta_slice):
     return df_meta_slice
 
 
-def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
+def process_dataframes(pool, dflist, chunks, depth=0, additional=None):
     """
-
-    :param pool:
-    :param dflist:
-    :param chunks:
+    Main func
+    :param pool: pool of worker processes (daemons)
+    :param dflist: list of dataframes to evaluate
+    :param chunks: len(partitions)
     :param depth: Increases roughly every 4-5 days of data accumulation
-    :param additional:
-    :return:
+    :param additional: from batching process, output from previous run that needs to be merged with dflist contents
+    :return: contents of dflist merged into a single, metadata+occurrence-aggregated dataframe
     """
     # or (len(dflist) == 1 and depth == 0)
     if len(dflist) > 1 or (len(dflist) == 1 and depth == 0):
@@ -274,29 +275,44 @@ def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
             logger.info("Size of merged dataframe: {}".format(pair_df.shape))
             new_list.append(pair_df)
 
+        # There is a dataframe from a previous run to include, and recursive level is deep enough
         if additional is not None and depth > 0 and any(multi_dfs):
             print("Adding to ", multi_dfs[-1])
             new_list[-1].append(additional)
 
+        # Slice dataframes contained in new_list into their base columns: one list for occurrences, another for
+        # metadata
         slices_occ, slices_meta = slice_many_df(new_list, True)
 
+        # Assign booleans indicating whether dataframes consist of multiple dataframes (from partitioning)
         multi_dfs = [multi_dfs[i] for i, _ in slices_occ]
+        # Aggregate metadata and sum up occurrences (based on Sequence groupby). Drop duplicate rows based on
+        # PageSequence values, to avoid over-dropping (since Sequence includes events fired within journey and
+        # PageSequence doesn't. Occurrences computed first, since they're the list computationally intensive
+        # and can be used as a basis for row drops, to reduce future computes.
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
+        # If rows have been dropped due to one-offs, first reduce metadata slice size
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             logger.info("conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
+        # Boolean assignment for metadata slices
         multi_dfs = [multi_dfs[i] for i, _ in slices_meta]
+        # Same with the occurrences run
         slices_meta = map_aggregate_function(depth, multi_dfs, pool, slices_meta)
-        # slices_meta = pool.starmap(sliced_mass_preprocess, zip(slices_meta, itertools.repeat(depth),
-        #                                                        multi_dfs)
+
+        # Concatenate lists of aggregated df_slices of Occurrences and metadat
         new_list = slices_occ + slices_meta
 
+        # TODO: debugging, remove post-testing
         # print("THEM COLUMNS", [(new.columns, new.shape) for _, new in new_list])
+        #
         new_list = merge_sliced_df(new_list, len(partitions))
         # print("THEM COLUMNS", [(new.columns, new.shape) for new in new_list])
-        return distribute_df_slices(pool, new_list, int(chunks / 2), depth + 1, additional)
+        # Recursive call, pass new_list for evaluation/merging, reduce number of chunks,
+        # increase recursive level/depth. If available, propagate the additional df.
+        return process_dataframes(pool, new_list, int(chunks / 2), depth + 1, additional)
     else:
         return dflist[0]
 
@@ -313,17 +329,17 @@ def map_aggregate_function(depth, multi_dfs, pool, df_slices):
     shape = max([slice_occ.shape[0] for _, slice_occ in df_slices])
     if shape < ROW_LIMIT:
         print("multiprocessing, input matrix shape ", shape)
-        df_slices = pool.starmap(sliced_mass_preprocess, zip(df_slices, itertools.repeat(depth),
-                                                             multi_dfs))
+        df_slices = pool.starmap(sliced_mass_aggregate, zip(df_slices, itertools.repeat(depth),
+                                                            multi_dfs))
     else:
         print("no multiprocessing, input matrix too big ", shape)
         parameters = list(zip(df_slices, multi_dfs))
-        df_slices = [sliced_mass_preprocess(code_df_slice_i, depth, multiple_dfs_i) for
+        df_slices = [sliced_mass_aggregate(code_df_slice_i, depth, multiple_dfs_i) for
                      code_df_slice_i, multiple_dfs_i in parameters]
     return df_slices
 
 
-def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
+def sliced_mass_aggregate(code_df_slice, depth, multiple_dfs):
     """
 
     :param code_df_slice:
@@ -356,7 +372,11 @@ def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
 
 def slice_many_df(df_list, ordered=False):
     """
-
+    Slice a list of dataframes into their columns. First list will consist of
+    (df_number, [Sequence, PageSequence, Occurrences])
+    slices, second list will consist of (df_number, [Sequence, AggregatableMetadata1]),
+    (df_number, [Sequence, AggregatableMetadata2]) etc.
+    Reduces size of dataframes passed on to worker processes, so they don't break.
     :param df_list:
     :param ordered:
     :return:
@@ -373,9 +393,9 @@ def slice_many_df(df_list, ordered=False):
 
 def slice_dataframe(df):
     """
-
-    :param df:
-    :return:
+    Computes the slices (column pairs) of dataframe
+    :param df: dataframe to be sliced
+    :return: list of dataframe slices
     """
     sliced_df = []
     for col in SLICEABLE_COLUMNS:
@@ -394,13 +414,15 @@ def slice_dataframe(df):
 
 def merge_sliced_df(sliced_df_list, expected_size):
     """
-
-    :param sliced_df_list:
-    :param expected_size:
-    :return:
+    Merge dataframe slices (column pairs) when appropriate (codes match) and append to a list of merged dataframes.
+    Due to order of columns, the Occurences slice will be used as a basis for the merge.
+    :param sliced_df_list: list of slices
+    :param expected_size: number of dataframes that have been originally sliced
+    :return: list of merged dataframes
     """
     final_list = [pd.DataFrame()] * expected_size
     # print([df.shape for i, df in sliced_df_list if i == 0])
+    # i = dataframe code, dataframes may come from multiple files.
     for i, df in sliced_df_list:
         # print(df.columns)
         if len(final_list[i]) == 0:
@@ -412,7 +434,7 @@ def merge_sliced_df(sliced_df_list, expected_size):
     return final_list
 
 
-def multiprocess_make(files, destination, merged_filename):
+def initialize_make(files, destination, merged_filename):
     """
 
     :param files:
@@ -435,13 +457,13 @@ def multiprocess_make(files, destination, merged_filename):
 
     if not batching:
         print("No batching")
-        df = process(files, pool, num_chunks)
+        df = distribute_tasks(files, pool, num_chunks)
     else:
         print("Batching")
         df = None
         for batch_num, batch in enumerate(batches):
             logging.info("Working on batch: {} with {} file(s)...".format(batch_num + 1, len(batch)))
-            df = process(batch, pool, num_chunks, df)
+            df = distribute_tasks(batch, pool, num_chunks, df)
 
     print(df.iloc[0])
     sequence_preprocess(df)
@@ -461,7 +483,7 @@ def multiprocess_make(files, destination, merged_filename):
     logger.info("Multi done")
 
 
-def process(files, pool, num_chunks, df_prev=None):
+def distribute_tasks(files, pool, num_chunks, df_prev=None):
     """
 
     :param files:
@@ -480,7 +502,7 @@ def process(files, pool, num_chunks, df_prev=None):
         # df_list.append(df_prev)
 
     logger.info("Distributing tasks...")
-    df = distribute_df_slices(pool, df_list, num_chunks, 0, df_prev)
+    df = process_dataframes(pool, df_list, num_chunks, 0, df_prev)
     return df
 
 
@@ -613,5 +635,5 @@ if __name__ == "__main__":
     if not os.path.isdir(dest_directory):
         logging.info("Specified destination directory does not exist, creating...")
 
-    multiprocess_make(to_load, dest_directory, final_filename + ".csv.gz")
+    initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
 
