@@ -26,8 +26,8 @@ def test_collapse_loop():
 
 def test_start_end_page():
     assert preprocess.start_end_page(["page1","page1", "page2", "page3", "page1"]) == ("page1", "page1")
-    # is this intended? we would of dropped one page journies?
-    assert preprocess.start_end_page(["page1"]) == ("page1", "page1")
+    # if page_list length is one then return just that page, bug fix
+    assert preprocess.start_end_page(["page1"]) == ("page1")
 
 def test_subpaths_aka_edges_from_list():
     assert preprocess.subpaths_from_list(["page1","page1", "page2", "page3", "page1"]) == [['page1', 'page1'],
@@ -38,7 +38,17 @@ def test_subpaths_aka_edges_from_list():
 def test_start_page():
     assert preprocess.start_page(["page1", "page2", "page3"]) == "page1"
 
-# these are undergoing name changes, will fix after merge
-#def test_end_page():
-#    assert preprocess.end_page(["page1", "page2", "page3"]) == "page1"
+def test_end_page():
+    assert preprocess.end_page(["page1", "page2", "page3"]) == "page3"
 
+def test_start_end_subpath_list():
+    assert preprocess.start_end_subpath_list([['page1', 'page1'],
+ ['page1', 'page2'],
+ ['page2', 'page3'],
+ ['page3', 'page1']]) == ("page1", "page1")
+
+def test_start_end_edges_subpath_list():
+    assert preprocess.start_end_edges_subpath_list([['page1', 'page1'],
+ ['page1', 'page2'],
+ ['page2', 'page3'],
+ ['page3', 'page1']]) == (['page1', 'page1'], ['page3', 'page1'])
