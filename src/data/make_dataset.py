@@ -10,11 +10,14 @@ from multiprocessing import Pool, cpu_count
 
 import numpy as np
 import pandas as pd
+from pandas import DataFrame
 
 src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 sys.path.append(os.path.join(src, "features"))
+# noinspection PyPep8
 import preprocess as prep
+# noinspection PyPep8
 import build_features as feat
 
 # TODO: Integrate in the future
@@ -44,8 +47,6 @@ KEEP_ONES = False
 MAX_DEPTH = -1
 # Recursive depth limit for distribution function, so one-off journeys are drop in time.
 DEPTH_LIM = 1
-# Number of available CPUs, governs size of pool/number of daemon worker.
-NUM_CPU = 0
 # If there are many files to be merge, load in/preprocess in batches
 BATCH_SIZE = 3
 # A bit of a magic number, but limits dataframes that can be passed off to workers. If dataframe exceeds this size,
@@ -234,6 +235,7 @@ def merge_small_partition(partitions):
     return partitions
 
 
+# noinspection PyUnusedLocal
 def conditional_pre_gpb_drop(df_occ_slice, df_meta_slice):
     """
     Drop samples from metadata dataframe slice depending on already reduced Occurrences slice (occ slice set up as basis
@@ -442,18 +444,20 @@ def initialize_make(files, destination, merged_filename):
     :param merged_filename:
     :return:
     """
-    global FEWER_THAN_CPU, MAX_DEPTH, NUM_CPU, BATCH_SIZE
+    global FEWER_THAN_CPU, MAX_DEPTH, BATCH_SIZE
     batch_size = BATCH_SIZE
-    NUM_CPU = cpu_count()
+    # Number of available CPUs, governs size of pool/number of daemon worker.
+    num_cpu = cpu_count()
     batching, batches = compute_batches(files, batch_size)
-    num_chunks = compute_initial_chunksize(len(files)) if not batching else compute_initial_chunksize(batch_size)
+    num_chunks = compute_initial_chunksize(len(files), num_cpu) if not batching else compute_initial_chunksize(
+        batch_size, num_cpu)
 
-    FEWER_THAN_CPU = num_chunks == len(files) if not batching else batch_size + 1 <= NUM_CPU
+    FEWER_THAN_CPU = num_chunks == len(files) if not batching else batch_size + 1 <= num_cpu
     MAX_DEPTH = compute_max_depth(files, num_chunks, 0) if not batching else compute_max_depth([0] * (batch_size + 1),
                                                                                                num_chunks, 0)
     logger.info("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
-    logger.info("Using {} workers...".format(NUM_CPU))
-    pool = Pool(NUM_CPU)
+    logger.info("Using {} workers...".format(num_cpu))
+    pool = Pool(num_cpu)
 
     if not batching:
         print("No batching")
@@ -506,13 +510,14 @@ def distribute_tasks(files, pool, num_chunks, df_prev=None):
     return df
 
 
-def compute_initial_chunksize(number_of_files):
+def compute_initial_chunksize(number_of_files, num_cpu):
     """
 
+    :param num_cpu:
     :param number_of_files:
     :return:
     """
-    if number_of_files > NUM_CPU:
+    if number_of_files > num_cpu:
         return int(number_of_files / 2)
     else:
         return number_of_files
@@ -525,7 +530,8 @@ def compute_batches(files, batchsize):
     :param batchsize:
     :return:
     """
-    if len(files) > 4:
+
+    if len(files) > int(np.ceil(batchsize * 1.5)):
         return True, merge_small_partition([files[i:i + batchsize] for i in range(0, len(files), batchsize)])
     else:
         return False, files
@@ -535,11 +541,11 @@ def read_file(filename):
     """
     Initialize dataframe using specified filename, do some initial prep if necessary depending on global vars
     (specified via arguments)
-    :param filename:
-    :return:
+    :param filename: filename to read, no exists_check because files are loaded from a specified directory
+    :return: loaded (maybe modified) pandas dataframe
     """
     logging.info("Reading: {}".format(filename))
-    df = pd.read_csv(filename, compression="gzip")
+    df: DataFrame = pd.read_csv(filename, compression="gzip")
     # print(df.shape)
     # Drop journeys of length 1
     if DROP_ONES:
@@ -559,9 +565,8 @@ def read_file(filename):
 
 def delete_vars(x):
     """
-
-    :param x:
-    :return:
+    Force object deletion
+    :param x: object to delete
     """
     if isinstance(x, list):
         for xs in x:
@@ -571,11 +576,12 @@ def delete_vars(x):
 
 def compute_max_depth(test_list, chunks, depth):
     """
-
-    :param test_list:
-    :param chunks:
-    :param depth:
-    :return:
+    Compute maximum recursive depth of process_dataframes, governs MAX_DEPTH global and at which point of execution
+    one-off rows (based on Occurrence # of PageSequence) will be dropped.
+    :param test_list: dummy list based on list of files to be read/processed.
+    :param chunks: initial number of partitions
+    :param depth: init = 0, increases with every recursive call
+    :return: (int) maximum recursive depth
     """
     partitions = partition_list(test_list, chunks)
     if len(test_list) > 1:
@@ -587,10 +593,11 @@ def compute_max_depth(test_list, chunks, depth):
 
 def generate_file_list(source_dir, stub):
     """
-
-    :param source_dir:
-    :param stub:
-    :return:
+    Initialize list of files to read from a specified directory. If stub is not empty, filter files to be read
+    based on whether their filename includes the stub.
+    :param source_dir: Source directory
+    :param stub: Filename stub for file filtering
+    :return: a list of files
     """
     file_list = [os.path.join(source_dir, file) for file in os.listdir(source_dir)]
     if stub is not None:
@@ -610,12 +617,6 @@ if __name__ == "__main__":
     parser.add_argument('--filename_stub', nargs="?")
     args = parser.parse_args()
 
-    # Set up variable values from parsed arguments
-    DROP_ONE_OFFS = args.drop_one_offs
-    DROP_ONES = args.drop_len_one
-    KEEP_ONES = args.keep_only_len_one
-    print(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES)
-
     DATA_DIR = os.getenv("DATA_DIR")
     source_directory = os.path.join(DATA_DIR, args.source_directory)
     dest_directory = os.path.join(DATA_DIR, args.dest_directory)
@@ -626,14 +627,23 @@ if __name__ == "__main__":
     logging.config.fileConfig(LOGGING_CONFIG)
     logger = logging.getLogger('make_dataset')
 
-    logger.info("Loading data")
+    if os.path.isdir(source_directory):
+        # Set up variable values from parsed arguments
+        DROP_ONE_OFFS = args.drop_one_offs
+        DROP_ONES = args.drop_len_one
+        KEEP_ONES = args.keep_only_len_one
+        print(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES)
 
-    to_load = generate_file_list(source_directory, filename_stub)
-    if len(to_load) == 1:
-        SINGLE = True
+        logger.info("Loading data...")
 
-    if not os.path.isdir(dest_directory):
-        logging.info("Specified destination directory does not exist, creating...")
+        to_load = generate_file_list(source_directory, filename_stub)
+        if len(to_load) == 1:
+            SINGLE = True
 
-    initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+        if not os.path.isdir(dest_directory):
+            logging.info("Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
 
+        initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+
+    else:
+        logging.info("Specified source directory \"{}\" does not exist, cannot read files.".format(source_directory))
