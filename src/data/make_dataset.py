@@ -296,8 +296,12 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
         # If rows have been dropped due to one-offs, first reduce metadata slice size
-        # if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
-        if slices_meta.shape[0] != slices_occ.shape[0]:
+        # if slices_meta[0][0].shape[0] != slices_occ[0][0].shape[0]:
+        # any([slice_m.shape[0]!=slice_o.shape[0] for slice_m,slice_o])
+        # print([slice_o.shape[0] for i, slice_o in slices_occ])
+        # print([slice_m.shape[0] for i, slice_m in slices_meta])
+
+        if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             logger.info("conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
