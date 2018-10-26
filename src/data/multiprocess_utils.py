@@ -25,7 +25,8 @@ def compute_max_depth(test_list, chunks, depth, fewer_than_cpu):
     partitions = partition_list(test_list, chunks, fewer_than_cpu)
     if len(test_list) > 1:
         new_lst = [0 for _ in partitions]
-        return compute_max_depth(new_lst, (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks), depth + 1, fewer_than_cpu)
+        return compute_max_depth(new_lst, (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks), depth + 1,
+                                 fewer_than_cpu)
     else:
         return depth
 
@@ -131,7 +132,7 @@ def slice_many_df(df_list, drop_one_offs, sliceable_cols, ordered=False):
                 slice_dataframe(df, drop_one_offs, sliceable_cols) if
                 "Occurrences" in df.columns[ind]], [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list)
                                                     for ind in
-                                                    slice_dataframe(df,drop_one_offs, sliceable_cols) if
+                                                    slice_dataframe(df, drop_one_offs, sliceable_cols) if
                                                     "Occurrences" not in df.columns[ind]]
 
 
