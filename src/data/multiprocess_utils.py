@@ -139,6 +139,8 @@ def slice_dataframe(df, drop_one_offs, sliceable_cols):
     """
     Computes the slices (column pairs) of dataframe
     :param df: dataframe to be sliced
+    :param drop_one_offs:
+    :param sliceable_cols:
     :return: list of dataframe slices
     """
     sliced_df = []
