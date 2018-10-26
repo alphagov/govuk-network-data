@@ -168,7 +168,7 @@ def add_loop_columns(user_journey_df):
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Page_Seq_Occurrences'].transform('sum')
 
 
-def sliced_groupby_meta(df_slice: DataFrame, depth: int, multiple_dfs: bool):
+def groupby_meta(df_slice: DataFrame, depth: int, multiple_dfs: bool):
     """
     Aggregate specified metadata column. If it's the first recursive run, transform aggregate metadata string to a
     dict-like list.
@@ -296,17 +296,17 @@ def map_aggregate_function(depth: int, multi_dfs: list, pool: Pool, df_slices: l
     shape = max([slice_occ.shape[0] for _, slice_occ in df_slices])
     if shape < ROW_LIMIT:
         print("multiprocessing, input matrix shape ", shape)
-        df_slices = pool.starmap(sliced_mass_aggregate, zip(df_slices, itertools.repeat(depth),
-                                                            multi_dfs))
+        df_slices = pool.starmap(aggregate, zip(df_slices, itertools.repeat(depth),
+                                                multi_dfs))
     else:
         print("no multiprocessing, input matrix too big ", shape)
         parameters = list(zip(df_slices, multi_dfs))
-        df_slices = [sliced_mass_aggregate(code_df_slice_i, depth, multiple_dfs_i) for
+        df_slices = [aggregate(code_df_slice_i, depth, multiple_dfs_i) for
                      code_df_slice_i, multiple_dfs_i in parameters]
     return df_slices
 
 
-def sliced_mass_aggregate(code_df_slice: tuple, depth: int, multiple_dfs: bool):
+def aggregate(code_df_slice: tuple, depth: int, multiple_dfs: bool):
     """
 
     :param code_df_slice:
@@ -318,10 +318,10 @@ def sliced_mass_aggregate(code_df_slice: tuple, depth: int, multiple_dfs: bool):
     df_slice: DataFrame = code_df_slice[1]
     # print(df_slice.columns)
     if df_slice.columns[1] in COUNTABLE_AGGREGATE_COLUMNS:
-        logger.info("Aggregating {}...".format(df_slice.columns[1]))
-        sliced_groupby_meta(df_slice, depth, multiple_dfs)
+        logging.debug("Aggregating {}...".format(df_slice.columns[1]))
+        groupby_meta(df_slice, depth, multiple_dfs)
     elif "Occurrences" in df_slice.columns:
-        logger.info("Occurrences...")
+        logging.debug("Occurrences...")
         df_slice['Occurrences'] = df_slice.groupby('Sequence')['Occurrences'].transform('sum')
         if DROP_ONE_OFFS:
             df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
@@ -350,23 +350,17 @@ def initialize_make(files: list, destination: str, merged_filename: str):
     # Number of available CPUs, governs size of pool/number of daemon worker.
     num_cpu = cpu_count()
     batching, batches = multi_utils.compute_batches(files, batch_size)
-    num_chunks = multi_utils.compute_initial_chunksize(len(files),
-                                                       num_cpu) if not batching else multi_utils.compute_initial_chunksize(
-        batch_size, num_cpu)
+    num_chunks, FEWER_THAN_CPU, MAX_DEPTH = setup_parameters(batch_size, batching, files, num_cpu)
 
-    FEWER_THAN_CPU = num_chunks == len(files) if not batching else batch_size + 1 <= num_cpu
-    MAX_DEPTH = multi_utils.compute_max_depth(files, num_chunks, 0, FEWER_THAN_CPU) if not batching else multi_utils.compute_max_depth(
-        [0] * (batch_size + 1),
-        num_chunks, 0, FEWER_THAN_CPU)
     logger.info("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
     logger.info("Using {} workers...".format(num_cpu))
     pool = Pool(num_cpu)
 
     if not batching:
-        print("No batching")
+        logging.debug("No batching")
         df = distribute_tasks(files, pool, num_chunks)
     else:
-        print("Batching")
+        logging.debug("Batching")
         df = None
         for batch_num, batch in enumerate(batches):
             logging.info("Working on batch: {} with {} file(s)...".format(batch_num + 1, len(batch)))
@@ -388,6 +382,22 @@ def initialize_make(files: list, destination: str, merged_filename: str):
     pool.join()
 
     logger.info("Multi done")
+
+
+def setup_parameters(batch_size, batching, files, num_cpu):
+    # global FEWER_THAN_CPU, MAX_DEPTH
+    if not batching:
+        num_chunks = multi_utils.compute_initial_chunksize(len(files), num_cpu)
+        fewer_than_cpu = num_chunks == len(files)
+        max_depth = multi_utils.compute_max_depth(files, num_chunks, 0,
+                                                  fewer_than_cpu)
+    else:
+        num_chunks = multi_utils.compute_initial_chunksize(batch_size, num_cpu)
+        fewer_than_cpu = batch_size + 1 <= num_cpu
+        max_depth = multi_utils.compute_max_depth(
+            [0] * (batch_size + 1),
+            num_chunks, 0, fewer_than_cpu)
+    return num_chunks, fewer_than_cpu, max_depth
 
 
 def distribute_tasks(files, pool, num_chunks, df_prev=None):
@@ -455,14 +465,23 @@ def generate_file_list(source_dir, stub):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Make datasets module')
+    parser = argparse.ArgumentParser(description='Module that produces a merged, metadata-aggregated and '
+                                                 'preprocessed dataset (.csv.gz), given a source directory '
+                                                 'containing raw BigQuery extract dataset(s). Merging is '
+                                                 'skipped if only one file is provided.')
     parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
     parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
     parser.add_argument('output_filename', help='Naming convention for resulting merged dataframe file.')
-    parser.add_argument('--drop_one_offs', action='store_true')
-    parser.add_argument('--keep_only_len_one', action='store_true')
-    parser.add_argument('--drop_len_one', action='store_true')
-    parser.add_argument('--filename_stub', nargs="?")
+    parser.add_argument('--drop_one_offs', action='store_true',
+                        help='Drop journeys occurring only once (on a daily basis, '
+                             'or over approximately 3 day periods).')
+    parser.add_argument('--keep_only_len_one', action='store_true',
+                        help='Keep ONLY journeys with length 1 ie journeys visiting only one page.')
+    parser.add_argument('--drop_len_one', action='store_true',
+                        help='Drop journeys with length 1 ie journeys visiting only one page.')
+    parser.add_argument('--filename_stub', default=None, type=str,
+                        help='Naming convention for resulting merged dataframe file.')
+    parser.add_argument('--quiet', action='store_true', help='Turn off logging.')
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
