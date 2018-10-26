@@ -7,3 +7,6 @@ def test_list_to_dict():
 
 def test_str_to_dict():
     assert make_dataset.str_to_dict("Mobile,Desktop,Mobile") == [("Mobile", 2),("Desktop", 1)]
+
+def test_aggregate_dict():
+    assert make_dataset.aggregate_dict([[("Desktop", 3), ("Tablet", 1), ("Mobile", 2)] + [("Desktop", 3), ("Tablet", 1), ("Mobile", 2)]]) == [('Desktop', 6), ('Tablet', 2), ('Mobile', 4)]
