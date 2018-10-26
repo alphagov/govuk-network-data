@@ -8,16 +8,14 @@ import sys
 from collections import Counter
 from multiprocessing import Pool, cpu_count
 
-import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
 src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 sys.path.append(os.path.join(src, "features"))
-# noinspection PyPep8
+import multiprocess_utils as multi_utils
 import preprocess as prep
-# noinspection PyPep8
 import build_features as feat
 
 # TODO: Integrate in the future
@@ -203,39 +201,6 @@ def drop_duplicate_rows(df_slice: DataFrame):
     logger.info("Dropped {} duplicated rows.".format(bef - after))
 
 
-def partition_list(dataframe_list: list, chunks: int):
-    """
-    Build a list of partitions from a list of dataframes. Based on indices.
-    :param dataframe_list: list of dataframes
-    :param chunks: number of indices lists to generate, len(partition_list)
-    :return: partition list, list of lists containing indices
-    """
-    if chunks > 0:
-        initial = [list(xs) for xs in np.array_split(list(range(len(dataframe_list))), chunks)]
-        # print(initial)
-        if len(initial) > 1 and not FEWER_THAN_CPU:
-            initial = merge_small_partition(initial)
-        return initial
-    else:
-        return [[0]]
-
-
-def merge_small_partition(partitions: list):
-    """
-    Merge small partitions of length 1 into previous partition, reduce number of recursive runs.
-    :param partitions:
-    :return:
-    """
-    to_merge = []
-    for partition in partitions:
-        if len(partition) == 1:
-            to_merge.append(partition[0])
-            partitions.remove(partition)
-    if len(to_merge) >= 1:
-        partitions[-1].extend(to_merge)
-    return partitions
-
-
 # noinspection PyUnusedLocal
 def conditional_pre_gpb_drop(df_occ_slice: list, df_meta_slice: list):
     """
@@ -267,14 +232,14 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
     # or (len(dflist) == 1 and depth == 0)
     if len(dflist) > 1 or (len(dflist) == 1 and depth == 0):
         new_list = []
-        partitions = partition_list(dflist, chunks)
+        partitions = multi_utils.partition_list(dflist, chunks, FEWER_THAN_CPU)
         multi_dfs = []
         for i, index_list in enumerate(partitions):
             lst = [dflist[ind] for ind in index_list]
             multi_dfs.append(len(lst) > 1)
             logger.info("Run: {} Num_of_df_to_merge: {}".format(i, len(lst)))
             pair_df = pd.concat(lst)
-            delete_vars(lst)
+            multi_utils.delete_vars(lst)
             logger.info("Size of merged dataframe: {}".format(pair_df.shape))
             new_list.append(pair_df)
 
@@ -285,7 +250,7 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
 
         # Slice dataframes contained in new_list into their base columns: one list for occurrences, another for
         # metadata
-        slices_occ, slices_meta = slice_many_df(new_list, True)
+        slices_occ, slices_meta = multi_utils.slice_many_df(new_list, DROP_ONE_OFFS, SLICEABLE_COLUMNS, True)
 
         # Assign booleans indicating whether dataframes consist of multiple dataframes (from partitioning)
         multi_dfs = [multi_dfs[i] for i, _ in slices_occ]
@@ -296,11 +261,6 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
         # If rows have been dropped due to one-offs, first reduce metadata slice size
-        # if slices_meta[0][0].shape[0] != slices_occ[0][0].shape[0]:
-        # any([slice_m.shape[0]!=slice_o.shape[0] for slice_m,slice_o])
-        # print([slice_o.shape[0] for i, slice_o in slices_occ])
-        # print([slice_m.shape[0] for i, slice_m in slices_meta])
-
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             logger.info("conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
@@ -316,8 +276,7 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
         # TODO: debugging, remove post-testing
         # print("THEM COLUMNS", [(new.columns, new.shape) for _, new in new_list])
         #
-        new_list = merge_sliced_df(new_list, len(partitions))
-        # print("THEM COLUMNS", [(new.columns, new.shape) for new in new_list])
+        new_list = multi_utils.merge_sliced_df(new_list, len(partitions))
         # Recursive call, pass new_list for evaluation/merging, reduce number of chunks,
         # increase recursive level/depth. If available, propagate the additional df.
         return process_dataframes(pool, new_list, int(chunks / 2), depth + 1, additional)
@@ -368,78 +327,14 @@ def sliced_mass_aggregate(code_df_slice: tuple, depth: int, multiple_dfs: bool):
             df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
         if multiple_dfs:
             drop_duplicate_rows(df_slice)
-        # print(DEPTH_LIM, MAX_DEPTH, DROP_INFREQ)
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             bef = df_slice.shape[0]
             # logger.info("Current # of rows: {}. Dropping journeys occurring only once..".format(bef))
             df_slice = df_slice[df_slice.Page_Seq_Occurrences > 1]
             after = df_slice.shape[0]
             logger.info("Dropped {} one-off rows.".format(bef - after))
+
     return code, df_slice
-
-
-def slice_many_df(df_list, ordered=False):
-    """
-    Slice a list of dataframes into their columns. First list will consist of
-    (df_number, [Sequence, PageSequence, Occurrences])
-    slices, second list will consist of (df_number, [Sequence, AggregatableMetadata1]),
-    (df_number, [Sequence, AggregatableMetadata2]) etc.
-    Reduces size of dataframes passed on to worker processes, so they don't break.
-    :param df_list:
-    :param ordered:
-    :return:
-    """
-    if not ordered:
-        return [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list) for ind in slice_dataframe(df)]
-    else:
-        return [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list) for ind in slice_dataframe(df) if
-                "Occurrences" in df.columns[ind]], [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list)
-                                                    for ind in
-                                                    slice_dataframe(df) if
-                                                    "Occurrences" not in df.columns[ind]]
-
-
-def slice_dataframe(df):
-    """
-    Computes the slices (column pairs) of dataframe
-    :param df: dataframe to be sliced
-    :return: list of dataframe slices
-    """
-    sliced_df = []
-    for col in SLICEABLE_COLUMNS:
-        if col in df.columns:
-            if col == "Occurrences":
-                if DROP_ONE_OFFS:
-                    sliced_df.append(
-                        [df.columns.get_loc("Sequence"), df.columns.get_loc("PageSequence"), df.columns.get_loc(col)])
-                else:
-                    sliced_df.append(
-                        [df.columns.get_loc("Sequence"), df.columns.get_loc(col)])
-            else:
-                sliced_df.append([df.columns.get_loc("Sequence"), df.columns.get_loc(col)])
-    return sliced_df
-
-
-def merge_sliced_df(sliced_df_list: list, expected_size: int):
-    """
-    Merge dataframe slices (column pairs) when appropriate (codes match) and append to a list of merged dataframes.
-    Due to order of columns, the Occurences slice will be used as a basis for the merge.
-    :param sliced_df_list: list of slices
-    :param expected_size: number of dataframes that have been originally sliced
-    :return: list of merged dataframes
-    """
-    final_list = [pd.DataFrame()] * expected_size
-    # print([df.shape for i, df in sliced_df_list if i == 0])
-    # i = dataframe code, dataframes may come from multiple files.
-    for i, df in sliced_df_list:
-        # print(df.columns)
-        if len(final_list[i]) == 0:
-            # print("new")
-            final_list[i] = df.copy(deep=True)
-        else:
-            # print("merge")
-            final_list[i] = pd.merge(final_list[i], df, how='left', on='Sequence')
-    return final_list
 
 
 def initialize_make(files: list, destination: str, merged_filename: str):
@@ -454,13 +349,15 @@ def initialize_make(files: list, destination: str, merged_filename: str):
     batch_size = BATCH_SIZE
     # Number of available CPUs, governs size of pool/number of daemon worker.
     num_cpu = cpu_count()
-    batching, batches = compute_batches(files, batch_size)
-    num_chunks = compute_initial_chunksize(len(files), num_cpu) if not batching else compute_initial_chunksize(
+    batching, batches = multi_utils.compute_batches(files, batch_size)
+    num_chunks = multi_utils.compute_initial_chunksize(len(files),
+                                                       num_cpu) if not batching else multi_utils.compute_initial_chunksize(
         batch_size, num_cpu)
 
     FEWER_THAN_CPU = num_chunks == len(files) if not batching else batch_size + 1 <= num_cpu
-    MAX_DEPTH = compute_max_depth(files, num_chunks, 0) if not batching else compute_max_depth([0] * (batch_size + 1),
-                                                                                               num_chunks, 0)
+    MAX_DEPTH = multi_utils.compute_max_depth(files, num_chunks, 0, FEWER_THAN_CPU) if not batching else multi_utils.compute_max_depth(
+        [0] * (batch_size + 1),
+        num_chunks, 0, FEWER_THAN_CPU)
     logger.info("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
     logger.info("Using {} workers...".format(num_cpu))
     pool = Pool(num_cpu)
@@ -516,33 +413,6 @@ def distribute_tasks(files, pool, num_chunks, df_prev=None):
     return df
 
 
-def compute_initial_chunksize(number_of_files, num_cpu):
-    """
-
-    :param num_cpu:
-    :param number_of_files:
-    :return:
-    """
-    if number_of_files > num_cpu:
-        return int(number_of_files / 2)
-    else:
-        return number_of_files
-
-
-def compute_batches(files, batchsize):
-    """
-
-    :param files:
-    :param batchsize:
-    :return:
-    """
-
-    if len(files) > int(np.ceil(batchsize * 1.5)):
-        return True, merge_small_partition([files[i:i + batchsize] for i in range(0, len(files), batchsize)])
-    else:
-        return False, files
-
-
 def read_file(filename):
     """
     Initialize dataframe using specified filename, do some initial prep if necessary depending on global vars
@@ -567,34 +437,6 @@ def read_file(filename):
             sequence_preprocess(df)
             df.drop(DROPABLE_COLS, axis=1, inplace=True)
     return df
-
-
-def delete_vars(x):
-    """
-    Force object deletion
-    :param x: object to delete
-    """
-    if isinstance(x, list):
-        for xs in x:
-            del xs
-    del x
-
-
-def compute_max_depth(test_list, chunks, depth):
-    """
-    Compute maximum recursive depth of process_dataframes, governs MAX_DEPTH global and at which point of execution
-    one-off rows (based on Occurrence # of PageSequence) will be dropped.
-    :param test_list: dummy list based on list of files to be read/processed.
-    :param chunks: initial number of partitions
-    :param depth: init = 0, increases with every recursive call
-    :return: (int) maximum recursive depth
-    """
-    partitions = partition_list(test_list, chunks)
-    if len(test_list) > 1:
-        new_lst = [0 for _ in partitions]
-        return compute_max_depth(new_lst, (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks), depth + 1)
-    else:
-        return depth
 
 
 def generate_file_list(source_dir, stub):
