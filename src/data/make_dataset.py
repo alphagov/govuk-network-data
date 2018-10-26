@@ -8,6 +8,7 @@ import sys
 from collections import Counter
 from multiprocessing import Pool, cpu_count
 
+import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
@@ -135,9 +136,10 @@ def event_preprocess(user_journey_df):
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
-    logger.info("Page_Event_List to Event_List...")
+    logger.info("Preprocess and aggregate events...")
+    logger.debug("Page_Event_List to Event_List...")
     user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 1))
-    logger.info("Computing event-related counts and frequencies...")
+    logger.debug("Computing event-related counts and frequencies...")
     event_counters(user_journey_df)
 
 
@@ -147,8 +149,11 @@ def event_counters(user_journey_df):
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
+    logger.debug("Event_List to ...")
     user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(feat.count_event_cat)
+    logger.debug("Event_List to ...")
     user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat)
+    logger.debug("Event_List to ...")
     user_journey_df['Event_cat_act_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat_act)
 
 
@@ -158,14 +163,18 @@ def add_loop_columns(user_journey_df):
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
-    logger.info("Collapsing loops...")
+    logger.info("Preprocess journey looping...")
+    logger.debug("Collapsing loops...")
     user_journey_df['Page_List_NL'] = user_journey_df['Page_List'].map(prep.collapse_loop)
     # In order to groupby during analysis step
-    logger.info("De-looped lists to string...")
+    logger.debug("De-looped lists to string...")
     user_journey_df['Page_Seq_NL'] = user_journey_df['Page_List_NL'].map(lambda x: ">>".join(x))
     # Count occurrences of de-looped journeys, most generic journey frequency metric.
-    logger.info("Aggregating de-looped journey occurrences...")
+    logger.debug("Aggregating de-looped journey occurrences...")
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Page_Seq_Occurrences'].transform('sum')
+    logger.debug("De-looped page sequence to list...")
+    user_journey_df['Page_List_NL'] = user_journey_df['Page_Seq_NL'].map(
+        lambda x: x.split(">>") if isinstance(x, str) else np.NaN)
 
 
 def groupby_meta(df_slice: DataFrame, depth: int, multiple_dfs: bool):
@@ -183,7 +192,7 @@ def groupby_meta(df_slice: DataFrame, depth: int, multiple_dfs: bool):
         df_slice[agg] = df_slice[agg].map(str_to_dict)
     if multiple_dfs:
         metadata_gpb = df_slice.groupby('Sequence')[agg].apply(aggregate_dict)
-        # logger.info("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
+        logger.debug("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
         df_slice[agg] = df_slice['Sequence'].map(metadata_gpb)
         drop_duplicate_rows(df_slice)
 
@@ -195,10 +204,10 @@ def drop_duplicate_rows(df_slice: DataFrame):
     :return:
     """
     bef = df_slice.shape[0]
-    # logger.info("Current # of rows: {}. Dropping duplicate rows..".format(bef))
+    logger.debug("Current # of rows: {}. Dropping duplicate rows..".format(bef))
     df_slice.drop_duplicates(subset='Sequence', keep='first', inplace=True)
     after = df_slice.shape[0]
-    logger.info("Dropped {} duplicated rows.".format(bef - after))
+    logger.debug("Dropped {} duplicated rows.".format(bef - after))
 
 
 # noinspection PyUnusedLocal
@@ -261,8 +270,9 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
         # If rows have been dropped due to one-offs, first reduce metadata slice size
+        # Improve this condition
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
-            logger.info("conditional_pre_gpb_drop")
+            logger.info("Conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
         # Boolean assignment for metadata slices
@@ -286,20 +296,21 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
 
 def map_aggregate_function(depth: int, multi_dfs: list, pool: Pool, df_slices: list):
     """
-
-    :param depth:
-    :param multi_dfs:
+    Map aggregate to either a worker process or sequentially, depending on the slices'
+    maximum size, compared against a global threshold. Accumulate output and return.
+    :param depth: depth within recursive function
+    :param multi_dfs: list of boolean values referring to
     :param pool:
     :param df_slices:
     :return:
     """
     shape = max([slice_occ.shape[0] for _, slice_occ in df_slices])
     if shape < ROW_LIMIT:
-        print("multiprocessing, input matrix shape ", shape)
+        logging.info("Multiprocessing, input rows: {}".format(shape[0]))
         df_slices = pool.starmap(aggregate, zip(df_slices, itertools.repeat(depth),
                                                 multi_dfs))
     else:
-        print("no multiprocessing, input matrix too big ", shape)
+        logging.info("No multiprocessing, input rows: {}".format(shape[0]))
         parameters = list(zip(df_slices, multi_dfs))
         df_slices = [aggregate(code_df_slice_i, depth, multiple_dfs_i) for
                      code_df_slice_i, multiple_dfs_i in parameters]
@@ -352,21 +363,20 @@ def initialize_make(files: list, destination: str, merged_filename: str):
     batching, batches = multi_utils.compute_batches(files, batch_size)
     num_chunks, FEWER_THAN_CPU, MAX_DEPTH = setup_parameters(batch_size, batching, files, num_cpu)
 
-    logger.info("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
-    logger.info("Using {} workers...".format(num_cpu))
+    logger.debug("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
+    logger.debug("Using {} workers...".format(num_cpu))
+    if batching: logger.debug("With batching")
     pool = Pool(num_cpu)
 
     if not batching:
-        logging.debug("No batching")
         df = distribute_tasks(files, pool, num_chunks)
     else:
-        logging.debug("Batching")
         df = None
         for batch_num, batch in enumerate(batches):
             logging.info("Working on batch: {} with {} file(s)...".format(batch_num + 1, len(batch)))
             df = distribute_tasks(batch, pool, num_chunks, df)
 
-    print(df.iloc[0])
+    logging.debug(df.iloc[0])
     sequence_preprocess(df)
     event_preprocess(df)
     add_loop_columns(df)
@@ -385,7 +395,6 @@ def initialize_make(files: list, destination: str, merged_filename: str):
 
 
 def setup_parameters(batch_size, batching, files, num_cpu):
-    # global FEWER_THAN_CPU, MAX_DEPTH
     if not batching:
         num_chunks = multi_utils.compute_initial_chunksize(len(files), num_cpu)
         fewer_than_cpu = num_chunks == len(files)
@@ -409,8 +418,8 @@ def distribute_tasks(files, pool, num_chunks, df_prev=None):
     :param df_prev:
     :return:
     """
-    logger.info("chunks: {} fewer: {} max_depth: {}".format(num_chunks, FEWER_THAN_CPU, MAX_DEPTH))
-    logger.info("Number of files: {}".format(len(files)))
+    # logger.info("chunks: {} fewer: {} max_depth: {}".format(num_chunks, FEWER_THAN_CPU, MAX_DEPTH))
+    logger.debug("Number of files: {}".format(len(files)))
     logger.info("Multi start...")
     df_list = pool.map(read_file, files)
 
@@ -435,11 +444,11 @@ def read_file(filename):
     # print(df.shape)
     # Drop journeys of length 1
     if DROP_ONES:
-        print("dropping ones")
+        logging.debug("Dropping ones")
         df.query("PageSeq_Length > 1", inplace=True)
     # Keep ONLY journeys of length 1
     elif KEEP_ONES:
-        print("keeping only ones")
+        logging.debug("Keeping only ones")
         df.query("PageSeq_Length == 1", inplace=True)
     # If
     if DROP_ONE_OFFS:
@@ -472,16 +481,16 @@ if __name__ == "__main__":
     parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
     parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
     parser.add_argument('output_filename', help='Naming convention for resulting merged dataframe file.')
-    parser.add_argument('--drop_one_offs', action='store_true',
+    parser.add_argument('-doo', '--drop_one_offs', action='store_true',
                         help='Drop journeys occurring only once (on a daily basis, '
                              'or over approximately 3 day periods).')
-    parser.add_argument('--keep_only_len_one', action='store_true',
+    parser.add_argument('-kloo', '--keep_len_one_only', action='store_true',
                         help='Keep ONLY journeys with length 1 ie journeys visiting only one page.')
-    parser.add_argument('--drop_len_one', action='store_true',
+    parser.add_argument('-dlo', '--drop_len_one', action='store_true',
                         help='Drop journeys with length 1 ie journeys visiting only one page.')
-    parser.add_argument('--filename_stub', default=None, type=str,
+    parser.add_argument('-f', '--filename_stub', default=None, type=str,
                         help='Naming convention for resulting merged dataframe file.')
-    parser.add_argument('--quiet', action='store_true', help='Turn off logging.')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
@@ -494,23 +503,36 @@ if __name__ == "__main__":
     logging.config.fileConfig(LOGGING_CONFIG)
     logger = logging.getLogger('make_dataset')
 
+    if args.quiet:
+        logging.disable(logging.DEBUG)
+
     if os.path.isdir(source_directory):
         # Set up variable values from parsed arguments
         DROP_ONE_OFFS = args.drop_one_offs
         DROP_ONES = args.drop_len_one
-        KEEP_ONES = args.keep_only_len_one
-        print(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES)
+        KEEP_ONES = args.keep_len_one_only
+        # pretty_tab = "".join(["\t" for i in range(12)])
+        logger.info(
+            "Data exclusion parameters:\nDrop one-off journeys: {}"
+            "\nDrop journeys of length 1: {}"
+            "\nKeep journeys only of length 1: {}".format(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES))
 
         logger.info("Loading data...")
 
         to_load = generate_file_list(source_directory, filename_stub)
-        if len(to_load) <= 3:
-            SINGLE = True
+        if len(to_load) > 0:
+            if len(to_load) <= BATCH_SIZE:
+                SINGLE = True
 
-        if not os.path.isdir(dest_directory):
-            logging.info("Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
+            if not os.path.isdir(dest_directory):
+                logging.info(
+                    "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
 
-        initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
-
+            initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+        else:
+            logging.info(
+                "Specified source directory \"{}\" contains no target files.".format(source_directory))
     else:
         logging.info("Specified source directory \"{}\" does not exist, cannot read files.".format(source_directory))
+
+
