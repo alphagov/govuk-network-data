@@ -21,3 +21,9 @@ def test_data_exists():
     assert user_journey_df is not None
     assert user_journey_df.shape == (100, 7)
 
+# read in and test Page Event and Page List creation
+def test_sequence_preprocess():
+    user_journey_df = pd.read_pickle("./tests/user_journey_df.pkl")
+    make_dataset.sequence_preprocess(user_journey_df)
+    # add 3 columns
+    assert user_journey_df.shape == (100, 10)
