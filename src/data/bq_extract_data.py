@@ -136,7 +136,7 @@ if __name__ == "__main__":
         # If dest_dir doesn't exist, create it.
         if not os.path.isdir(dest_dir):
             logging.info("Specified destination directory \"{}\" does not exist, creating...".format(dest_dir))
-            os.mkdir(os.path.join(DATA_DIR, args.dest_dir))
+            os.mkdir(dest_dir)
 
         logger.info(
             "\n======\nStart date: {} \nEnd date: {} \nDestination directory: {}\
@@ -150,6 +150,6 @@ if __name__ == "__main__":
         if query_path is not None:
             logger.info("Specified query exists, running...")
             query = read_query(query_path)
-            looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename, dialect)
+            # looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename, dialect)
     else:
         logger.info("Query failed, not enough info provided")
