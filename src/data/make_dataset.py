@@ -527,12 +527,17 @@ if __name__ == "__main__":
             if not os.path.isdir(dest_directory):
                 logging.info(
                     "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
+                os.mkdir(dest_directory)
 
-            initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+            # initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
         else:
             logging.info(
                 "Specified source directory \"{}\" contains no target files.".format(source_directory))
+
     else:
         logging.info("Specified source directory \"{}\" does not exist, cannot read files.".format(source_directory))
 
+    # list2 = [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)]
+    # print(list2)
+    # print(aggregate_dict(list2))
 
