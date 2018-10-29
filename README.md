@@ -5,25 +5,15 @@ A data pipeline for extracting and preprocessing BigQuery user journey data. The
 
 # Installing / Getting started
 
-A quick introduction of the minimal setup you need to get a hello world up &
-running.
+You need access and a key to GOV.UK BigQuery analytics (govuk-bigguery-analytics) to extract raw data for this pipeline. People to ask about this are senior performance analysts.
 
-This should probably include setting up the computing environment and the necessary permissions required. Who to ask for them or point to a wiki page. 
-
-```shell
-packagemanager install awesome-project
-awesome-project start
-awesome-project "Do something!"  # prints "Nah."
-```
-
-Here you should say what actually happens when you execute the code above.
-
-# Initial configuration
+Clone this repo and then set up your python 3.6.0 virtual environment 
 
 ## Python version
 Python 3.6.0
 
 ## Virtual environment
+Create a new python 3.6.0 virtual environment using your favourite virtual environment manager (you may need pyenv to specify python version). 
 
 Source the environment variables from the .envrc file either using direnv (`direnv allow`) or `source .envrc`.  
 You can check they're loaded using `echo $NAME_OF_ENVIRONMENT_VARIABLE` or `printenv`.
@@ -45,31 +35,8 @@ This package arms data scientists with the tools to answer the hardest questions
 * A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journies that users travel in a session.   
 * Express this data as a graph with pages visited expressed as nodes and directed movement between pages as edges.   
 
-## Configuration
 
-Here you should write what are all of the configurations a user can enter when
-using the project.
-
-#### Argument 1
-Type: `String`  
-Default: `'default value'`
-
-State what an argument does and how you can use it. If needed, you can provide
-an example below.
-
-Example:
-```bash
-awesome-project "Some other value"  # Prints "You're nailing this readme!"
-```
-
-#### Argument 2
-Type: `Number|Boolean`  
-Default: 100
-
-Copy-paste as many of these as you need.
-
-
-## Running a big query extract
+# Extracting raw data from big query
 - Run `python src/data/bq_extract_data.py --help` to list required positional arguments:  
   - __start_date__ - Start date in Y-m-d, eg 2018-12-31
   - __end_date__ - End date in Y-m-d, eg 2018-12-31
@@ -88,9 +55,10 @@ Here's an example of a command execution:
 `python src/data/bq_extract_data.py 2018-10-18 2018-10-18 raw_output_dir test prelim_meta_standard_query_with_pageseq --standard`  
 In the above example, the SQL query exists as 'prelim_meta_standard_query_with_pageseq.sql' in the $QUERIES_DIR directory.
 
-## Creating a csv with each row a processed user journey with session information rolled into it 
+# Converting raw big query data to processed_journey data
 
-For example is 3 users went A -> B -> C on different devices, then this would be a single row with a column containing a device dictionary where the device is the key and the value is the number of sessions using that device. E.g., `{'mobile':1, 'tablet':1, 'desktop':1}`.
+This creates a csv where each row is a processed user journey and has session information rolled into it.   
+For example if 3 users went A -> B -> C on different devices, then this would be represented as a single row with a column containing a device dictionary (See table below: DeviceCategories).
 
 This processing script can also merge different inputs such as data extracts from different days.
 
@@ -132,6 +100,9 @@ Here's some definitions of the columns in the resulting dataframe:
 | Page_Seq_NL | Page Seqence without self-loops  |
 | Occurrences_NL | Number of sequence occurrences without self-loops  |
 
+# Converting processed_journey data to functional network data
+
+TBC...
 
 # Developing
 
