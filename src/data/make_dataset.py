@@ -529,7 +529,7 @@ if __name__ == "__main__":
                     "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
                 os.mkdir(dest_directory)
 
-            # initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+            initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
         else:
             logging.info(
                 "Specified source directory \"{}\" contains no target files.".format(source_directory))

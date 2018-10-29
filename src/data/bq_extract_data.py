@@ -150,6 +150,6 @@ if __name__ == "__main__":
         if query_path is not None:
             logger.info("Specified query exists, running...")
             query = read_query(query_path)
-            # looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename, dialect)
+            looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename, dialect)
     else:
         logger.info("Query failed, not enough info provided")
