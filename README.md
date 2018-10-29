@@ -25,6 +25,11 @@ Python 3.6.0
 
 ## Virtual environment
 
+Source the environment variables from the .envrc file either using direnv (`direnv allow`) or `source .envrc`.  
+You can check they're loaded using `echo $NAME_OF_ENVIRONMENT_VARIABLE` or `printenv`.
+
+Then install required python packages:  
+
 `pip install -r requirements.txt`
 
 ## Where to put your BigQuery key
@@ -65,8 +70,23 @@ Copy-paste as many of these as you need.
 
 
 ## Running a big query extract
+- Run `python src/data/bq_extract_data.py --help` to list required positional arguments:  
+  - __start_date__ - Start date in Y-m-d, eg 2018-12-31
+  - __end_date__ - End date in Y-m-d, eg 2018-12-31
+  - __dest_dir__ - Specialized destination directory for resulting dataframe
+              file(s).
+  - __filename__ - Naming convention for resulting dataframe file(s).
+  - __query__ - Name of query to use, within queries directory.
+- Other optional arguments:
+  - The default SQL dialect is legacy so specify `--standard` if needed. 
+  - Set verbosity as quiet `--quiet` to reduce logging output.
 
-`python src/data/bq_extract_data.py '2018-10-15' '2018-10-15' 'test_dir' 'test' 'simple_test.sql'`
+First, save your sql query 'query_name.sql' in the $QUERIES_DIR directory.  
+
+Here's an example of a command execution: 
+
+`python src/data/bq_extract_data.py 2018-10-18 2018-10-18 test_dir test prelim_meta_standard_query_with_pageseq --standard`  
+In the above example, the SQL query exists as 'prelim_meta_standard_query_with_pageseq.sql' in the $QUERIES_DIR directory.
 
 ## Creating a csv with each row a user journey with sessions rolled into it
 
