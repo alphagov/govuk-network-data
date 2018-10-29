@@ -28,7 +28,7 @@ Then install required python packages:
 
 then put the json file in there
 
-# Features
+# What this does
 
 This package arms data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.  
 
@@ -37,6 +37,8 @@ This package arms data scientists with the tools to answer the hardest questions
 
 
 # Extracting raw data from big query
+This produces a compressed csv in the destination directory (raw_bq_extract) where each row is a specific user journey (including events). However this raw data is messy and needs preprocessing to be analytically useful (see next section: 'Converting raw big query data to processed_journey data').
+
 - Run `python src/data/bq_extract_data.py --help` to list required positional arguments:  
   - __start_date__ - Start date in Y-m-d, eg 2018-12-31
   - __end_date__ - End date in Y-m-d, eg 2018-12-31
