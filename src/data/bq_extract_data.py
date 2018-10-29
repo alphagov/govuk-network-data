@@ -96,9 +96,11 @@ if __name__ == "__main__":
     parser.add_argument('dest_dir', help='Specialized destination directory for resulting dataframe file(s).')
     parser.add_argument('filename', help='Naming convention for resulting dataframe file(s).')
     parser.add_argument('query', help='Name of query to use, within queries directory.')
-    parser.add_argument('--standard', action='store_const', const="standard")
+    parser.add_argument('--standard', action='store_true', default=False,
+                        help='Specify BigQuery dialect. Legacy default.')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
-    if args.standard is not None:
+    if args.standard:
         dialect = "standard"
     else:
         dialect = "legacy"
@@ -107,6 +109,8 @@ if __name__ == "__main__":
     logging.config.fileConfig(LOGGING_CONFIG)
     logger = logging.getLogger('extract')
 
+    if args.quiet:
+        logging.disable(logging.DEBUG)
     # BQ PROJECT SETUP
     ProjectID = 'govuk-bigquery-analytics'
     KEY_DIR = os.getenv("BQ_KEY_DIR")
