@@ -306,11 +306,11 @@ def map_aggregate_function(depth: int, multi_dfs: list, pool: Pool, df_slices: l
     """
     shape = max([slice_occ.shape[0] for _, slice_occ in df_slices])
     if shape < ROW_LIMIT:
-        logging.info("Multiprocessing, input rows: {}".format(shape[0]))
+        logging.info("Multiprocessing, input rows: {}".format(shape))
         df_slices = pool.starmap(aggregate, zip(df_slices, itertools.repeat(depth),
                                                 multi_dfs))
     else:
-        logging.info("No multiprocessing, input rows: {}".format(shape[0]))
+        logging.info("No multiprocessing, input rows: {}".format(shape))
         parameters = list(zip(df_slices, multi_dfs))
         df_slices = [aggregate(code_df_slice_i, depth, multiple_dfs_i) for
                      code_df_slice_i, multiple_dfs_i in parameters]
@@ -489,7 +489,7 @@ if __name__ == "__main__":
     parser.add_argument('-dlo', '--drop_len_one', action='store_true',
                         help='Drop journeys with length 1 ie journeys visiting only one page.')
     parser.add_argument('-f', '--filename_stub', default=None, type=str,
-                        help='Naming convention for resulting merged dataframe file.')
+                        help='Filter files to be loaded based on whether their filenames contain specified stub.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
 
