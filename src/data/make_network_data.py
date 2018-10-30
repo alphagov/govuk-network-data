@@ -14,22 +14,26 @@ COLUMNS_TO_KEEP = set(['Page_List_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occ
 
 
 def read_file(filename):
+    logging.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
     columns = set(df.columns.values)
     df.drop(list(columns - COLUMNS_TO_KEEP), axis=1, inplace=True)
     for column in COLUMNS_TO_KEEP:
         if isinstance(df[column].iloc[0], str) and any(["," in val for val in df[column].values]):
-            logging.info("Working on literal_eval for \"{}\"".format(column))
+            logging.debug("Working on literal_eval for \"{}\"".format(column))
             df[column] = df[column].map(literal_eval)
     return df
 
 
 def generate_subpaths(user_journey_df):
+    logging.debug("Setting up sub-paths column...")
     user_journey_df['Subpaths'] = user_journey_df['Page_List'].map(prep.subpaths_from_list)
+    logging.debug("Setting up de-looped sub-paths column...")
     user_journey_df['Subpaths_NL'] = user_journey_df['Page_List_NL'].map(prep.subpaths_from_list)
 
 
 def edgelist_from_subpaths(user_journey_df):
+    logging.debug("Creating edge list from de-looped journeys...")
     edgelist_counter = Counter()
     for tup in user_journey_df.itertuples():
         for edge in tup.Subpaths_NL:
@@ -38,6 +42,7 @@ def edgelist_from_subpaths(user_journey_df):
 
 
 def nodes_from_edgelist(edgelist):
+    logging.debug("Creating node list...")
     node_list = set()
     for key, _ in edgelist.items():
         node_list.update(key)
@@ -49,7 +54,6 @@ def create_node_edge_files(source_filename, dest_filename):
     generate_subpaths(df)
     edges = edgelist_from_subpaths(df)
     nodes = nodes_from_edgelist(edges)
-    # print(nodes[0:5])
     logging.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logging.info("Writing edge list to file...")
     with open(dest_filename + "_edges.csv", "w") as file:
@@ -86,6 +90,7 @@ if __name__ == "__main__":
         logging.disable(logging.DEBUG)
 
     if os.path.exists(input_filename):
+        logger.info("Working on file {}:".format(input_filename))
         create_node_edge_files(input_filename, output_filename)
     else:
-        print(input_filename)
+        logger.debug("Specified filename does not exist {}:".format(input_filename))
