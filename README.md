@@ -1,7 +1,7 @@
 # govuk-network-data
 > Data pipeline for extraction and preprocessing of BigQuery user journey data.
 
-A data pipeline for extracting and preprocessing BigQuery user journey data. The data captures the sequences of pages visited by users and how often these journies occur. Additional metadata and Event data (what users do on their journey) is also provided.  
+A data pipeline for extracting and preprocessing BigQuery user journey data. The data captures the sequences of pages visited by users and how often these journeys occur. Additional metadata and Event data (what users do on their journey) is also provided.  
 
 # Installing / Getting started
 
