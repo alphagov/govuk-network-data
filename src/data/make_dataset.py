@@ -10,10 +10,12 @@ from multiprocessing import Pool, cpu_count
 
 import numpy as np
 import pandas as pd
+from pandas import DataFrame
 
 src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 sys.path.append(os.path.join(src, "features"))
+import multiprocess_utils as multi_utils
 import preprocess as prep
 import build_features as feat
 
@@ -31,27 +33,26 @@ SLICEABLE_COLUMNS = ['Occurrences', 'Languages', 'Locations', 'DeviceCategories'
 # "PageSequence" which is used for journey drops instead of "Sequence" which includes events, hence making journeys
 # overall more infrequent.
 DROPABLE_COLS = ['Page_Event_List', 'Page_List']
+# Execute module for only one file
+SINGLE: bool = False
 # Fewer files to process than available cpus.
-FEWER_THAN_CPU = False
+FEWER_THAN_CPU: bool = False
 # Drop journeys occurring once (not in a day, multiple days, governed by DEPTH globals). If false, overrides depth
 # globals and keeps journeys, resulting in massive dataframes (danger zone).
-DROP_ONE_OFFS = False
+DROP_ONE_OFFS: bool = False
 # Drop journeys of length 1
-DROP_ONES = False
+DROP_ONES: bool = False
 # Keep only journeys of length 1
-KEEP_ONES = False
+KEEP_ONES: bool = False
 # Maximum recursive depth for distribution function
-MAX_DEPTH = -1
+MAX_DEPTH: int = -1
 # Recursive depth limit for distribution function, so one-off journeys are drop in time.
-DEPTH_LIM = 1
-# Number of available CPUs, governs size of pool/number of daemon worker.
-NUM_CPU = 0
+DEPTH_LIM: int = 1
 # If there are many files to be merge, load in/preprocess in batches
-BATCH_SIZE = 3
+BATCH_SIZE: int = 3
 # A bit of a magic number, but limits dataframes that can be passed off to workers. If dataframe exceeds this size,
 # switch to sequential execution.
-ROW_LIMIT = 3000000
-SINGLE = False
+ROW_LIMIT: int = 3000000
 
 
 def list_to_dict(metadata_list):
@@ -135,9 +136,10 @@ def event_preprocess(user_journey_df):
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
-    logger.info("Page_Event_List to Event_List...")
+    logger.info("Preprocess and aggregate events...")
+    logger.debug("Page_Event_List to Event_List...")
     user_journey_df['Event_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pe_components(x, 1))
-    logger.info("Computing event-related counts and frequencies...")
+    logger.debug("Computing event-related counts and frequencies...")
     event_counters(user_journey_df)
 
 
@@ -147,8 +149,11 @@ def event_counters(user_journey_df):
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
+    logger.debug("Event_List to ...")
     user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(feat.count_event_cat)
+    logger.debug("Event_List to ...")
     user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat)
+    logger.debug("Event_List to ...")
     user_journey_df['Event_cat_act_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat_act)
 
 
@@ -158,23 +163,28 @@ def add_loop_columns(user_journey_df):
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
-    logger.info("Collapsing loops...")
+    logger.info("Preprocess journey looping...")
+    logger.debug("Collapsing loops...")
     user_journey_df['Page_List_NL'] = user_journey_df['Page_List'].map(prep.collapse_loop)
     # In order to groupby during analysis step
-    logger.info("De-looped lists to string...")
+    logger.debug("De-looped lists to string...")
     user_journey_df['Page_Seq_NL'] = user_journey_df['Page_List_NL'].map(lambda x: ">>".join(x))
     # Count occurrences of de-looped journeys, most generic journey frequency metric.
-    logger.info("Aggregating de-looped journey occurrences...")
-    user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
+    logger.debug("Aggregating de-looped journey occurrences...")
+    user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Page_Seq_Occurrences'].transform('sum')
+    logger.debug("De-looped page sequence to list...")
+    user_journey_df['Page_List_NL'] = user_journey_df['Page_Seq_NL'].map(
+        lambda x: x.split(">>") if isinstance(x, str) else np.NaN)
 
 
-def sliced_groupby_meta(df_slice, depth, multiple_dfs):
+def groupby_meta(df_slice: DataFrame, depth: int, multiple_dfs: bool):
     """
-
-    :param df_slice:
-    :param depth:
-    :param multiple_dfs:
-    :return: no return, mapping and drops happen inplace.
+    Aggregate specified metadata column. If it's the first recursive run, transform aggregate metadata string to a
+    dict-like list.
+    :param df_slice: specified metadata column (refer to AGGREGATE_COLUMNS values)
+    :param depth: (int) recursive call tracker, depth = 0 indicates first recursive call
+    :param multiple_dfs: (boolean) indicates whether many dfs have been merged and require grouping by
+    :return: no return, mapping and drops happen inplace on df_slice.
     """
     agg = df_slice.columns[1]
     # One-off
@@ -182,58 +192,26 @@ def sliced_groupby_meta(df_slice, depth, multiple_dfs):
         df_slice[agg] = df_slice[agg].map(str_to_dict)
     if multiple_dfs:
         metadata_gpb = df_slice.groupby('Sequence')[agg].apply(aggregate_dict)
-        # logger.info("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
+        logger.debug("Mapping {}, items: {}...".format(agg, len(metadata_gpb)))
         df_slice[agg] = df_slice['Sequence'].map(metadata_gpb)
         drop_duplicate_rows(df_slice)
 
 
-def drop_duplicate_rows(df_slice):
+def drop_duplicate_rows(df_slice: DataFrame):
     """
     Drop duplicate rows from a dataframe slice.
     :param df_slice:
     :return:
     """
     bef = df_slice.shape[0]
-    # logger.info("Current # of rows: {}. Dropping duplicate rows..".format(bef))
+    logger.debug("Current # of rows: {}. Dropping duplicate rows..".format(bef))
     df_slice.drop_duplicates(subset='Sequence', keep='first', inplace=True)
     after = df_slice.shape[0]
-    logger.info("Dropped {} duplicated rows.".format(bef - after))
+    logger.debug("Dropped {} duplicated rows.".format(bef - after))
 
 
-def partition_list(dataframe_list, chunks):
-    """
-
-    :param dataframe_list:
-    :param chunks:
-    :return:
-    """
-    if chunks > 0:
-        initial = [list(xs) for xs in np.array_split(list(range(len(dataframe_list))), chunks)]
-        # print(initial)
-        if len(initial) > 1 and not FEWER_THAN_CPU:
-            initial = merge_small_partition(initial)
-        return initial
-    else:
-        return [[0]]
-
-
-def merge_small_partition(partitions):
-    """
-    Merge small partitions of length 1 into previous partition, reduce number of recursive runs.
-    :param partitions:
-    :return:
-    """
-    to_merge = []
-    for partition in partitions:
-        if len(partition) == 1:
-            to_merge.append(partition[0])
-            partitions.remove(partition)
-    if len(to_merge) >= 1:
-        partitions[-1].extend(to_merge)
-    return partitions
-
-
-def conditional_pre_gpb_drop(df_occ_slice, df_meta_slice):
+# noinspection PyUnusedLocal
+def conditional_pre_gpb_drop(df_occ_slice: list, df_meta_slice: list):
     """
     Drop samples from metadata dataframe slice depending on already reduced Occurrences slice (occ slice set up as basis
     for drop because it's the fastest to compute. Only runs if contents df_occ_slice have already been reduced.
@@ -250,80 +228,96 @@ def conditional_pre_gpb_drop(df_occ_slice, df_meta_slice):
     return df_meta_slice
 
 
-def distribute_df_slices(pool, dflist, chunks, depth=0, additional=None):
+def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, additional: DataFrame = None):
     """
-
-    :param pool:
-    :param dflist:
-    :param chunks:
+    Main func
+    :param pool: pool of worker processes (daemons)
+    :param dflist: list of dataframes to evaluate
+    :param chunks: len(partitions)
     :param depth: Increases roughly every 4-5 days of data accumulation
-    :param additional:
-    :return:
+    :param additional: from batching process, output from previous run that needs to be merged with dflist contents
+    :return: contents of dflist merged into a single, metadata+occurrence-aggregated dataframe
     """
     # or (len(dflist) == 1 and depth == 0)
     if len(dflist) > 1 or (len(dflist) == 1 and depth == 0):
         new_list = []
-        partitions = partition_list(dflist, chunks)
+        partitions = multi_utils.partition_list(dflist, chunks, FEWER_THAN_CPU)
         multi_dfs = []
         for i, index_list in enumerate(partitions):
             lst = [dflist[ind] for ind in index_list]
             multi_dfs.append(len(lst) > 1)
             logger.info("Run: {} Num_of_df_to_merge: {}".format(i, len(lst)))
             pair_df = pd.concat(lst)
-            delete_vars(lst)
+            multi_utils.delete_vars(lst)
             logger.info("Size of merged dataframe: {}".format(pair_df.shape))
             new_list.append(pair_df)
 
+        # There is a dataframe from a previous run to include, and recursive level is deep enough
         if additional is not None and depth > 0 and any(multi_dfs):
             print("Adding to ", multi_dfs[-1])
             new_list[-1].append(additional)
 
-        slices_occ, slices_meta = slice_many_df(new_list, True)
+        # Slice dataframes contained in new_list into their base columns: one list for occurrences, another for
+        # metadata
+        slices_occ, slices_meta = multi_utils.slice_many_df(new_list, DROP_ONE_OFFS, SLICEABLE_COLUMNS, True)
 
+        # Assign booleans indicating whether dataframes consist of multiple dataframes (from partitioning)
         multi_dfs = [multi_dfs[i] for i, _ in slices_occ]
+        # Aggregate metadata and sum up occurrences (based on Sequence groupby). Drop duplicate rows based on
+        # PageSequence values, to avoid over-dropping (since Sequence includes events fired within journey and
+        # PageSequence doesn't. Occurrences computed first, since they're the list computationally intensive
+        # and can be used as a basis for row drops, to reduce future computes.
         slices_occ = map_aggregate_function(depth, multi_dfs, pool, slices_occ)
 
+        # If rows have been dropped due to one-offs, first reduce metadata slice size
+        # Improve this condition
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
-            logger.info("conditional_pre_gpb_drop")
+            logger.info("Conditional_pre_gpb_drop")
             slices_meta = conditional_pre_gpb_drop(slices_occ, slices_meta)
 
+        # Boolean assignment for metadata slices
         multi_dfs = [multi_dfs[i] for i, _ in slices_meta]
+        # Same with the occurrences run
         slices_meta = map_aggregate_function(depth, multi_dfs, pool, slices_meta)
-        # slices_meta = pool.starmap(sliced_mass_preprocess, zip(slices_meta, itertools.repeat(depth),
-        #                                                        multi_dfs)
+
+        # Concatenate lists of aggregated df_slices of Occurrences and metadat
         new_list = slices_occ + slices_meta
 
+        # TODO: debugging, remove post-testing
         # print("THEM COLUMNS", [(new.columns, new.shape) for _, new in new_list])
-        new_list = merge_sliced_df(new_list, len(partitions))
-        # print("THEM COLUMNS", [(new.columns, new.shape) for new in new_list])
-        return distribute_df_slices(pool, new_list, int(chunks / 2), depth + 1, additional)
+        #
+        new_list = multi_utils.merge_sliced_df(new_list, len(partitions))
+        # Recursive call, pass new_list for evaluation/merging, reduce number of chunks,
+        # increase recursive level/depth. If available, propagate the additional df.
+        return process_dataframes(pool, new_list, int(chunks / 2), depth + 1, additional)
     else:
         return dflist[0]
 
 
-def map_aggregate_function(depth, multi_dfs, pool, df_slices):
+def map_aggregate_function(depth: int, multi_dfs: list, pool: Pool, df_slices: list):
     """
-
-    :param depth:
-    :param multi_dfs:
+    Map aggregate to either a worker process or sequentially, depending on the slices'
+    maximum size, compared against a global threshold. Accumulate output and return.
+    :param depth: depth within recursive function
+    :param multi_dfs: list of boolean values referring to
     :param pool:
     :param df_slices:
     :return:
     """
     shape = max([slice_occ.shape[0] for _, slice_occ in df_slices])
     if shape < ROW_LIMIT:
-        print("multiprocessing, input matrix shape ", shape)
-        df_slices = pool.starmap(sliced_mass_preprocess, zip(df_slices, itertools.repeat(depth),
-                                                             multi_dfs))
+        logging.info("Multiprocessing, input rows: {}".format(shape))
+        df_slices = pool.starmap(aggregate, zip(df_slices, itertools.repeat(depth),
+                                                multi_dfs))
     else:
-        print("no multiprocessing, input matrix too big ", shape)
+        logging.info("No multiprocessing, input rows: {}".format(shape))
         parameters = list(zip(df_slices, multi_dfs))
-        df_slices = [sliced_mass_preprocess(code_df_slice_i, depth, multiple_dfs_i) for
+        df_slices = [aggregate(code_df_slice_i, depth, multiple_dfs_i) for
                      code_df_slice_i, multiple_dfs_i in parameters]
     return df_slices
 
 
-def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
+def aggregate(code_df_slice: tuple, depth: int, multiple_dfs: bool):
     """
 
     :param code_df_slice:
@@ -331,88 +325,30 @@ def sliced_mass_preprocess(code_df_slice, depth, multiple_dfs):
     :param multiple_dfs:
     :return:
     """
-    code = code_df_slice[0]
-    df_slice = code_df_slice[1]
+    code: int = code_df_slice[0]
+    df_slice: DataFrame = code_df_slice[1]
     # print(df_slice.columns)
     if df_slice.columns[1] in COUNTABLE_AGGREGATE_COLUMNS:
-        logger.info("Aggregating {}...".format(df_slice.columns[1]))
-        sliced_groupby_meta(df_slice, depth, multiple_dfs)
+        logging.debug("Aggregating {}...".format(df_slice.columns[1]))
+        groupby_meta(df_slice, depth, multiple_dfs)
     elif "Occurrences" in df_slice.columns:
-        logger.info("Occurrences...")
+        logging.debug("Occurrences...")
         df_slice['Occurrences'] = df_slice.groupby('Sequence')['Occurrences'].transform('sum')
         if DROP_ONE_OFFS:
             df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
         if multiple_dfs:
             drop_duplicate_rows(df_slice)
-        # print(DEPTH_LIM, MAX_DEPTH, DROP_INFREQ)
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
             bef = df_slice.shape[0]
             # logger.info("Current # of rows: {}. Dropping journeys occurring only once..".format(bef))
             df_slice = df_slice[df_slice.Page_Seq_Occurrences > 1]
             after = df_slice.shape[0]
             logger.info("Dropped {} one-off rows.".format(bef - after))
+
     return code, df_slice
 
 
-def slice_many_df(df_list, ordered=False):
-    """
-
-    :param df_list:
-    :param ordered:
-    :return:
-    """
-    if not ordered:
-        return [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list) for ind in slice_dataframe(df)]
-    else:
-        return [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list) for ind in slice_dataframe(df) if
-                "Occurrences" in df.columns[ind]], [(i, df.iloc[:, ind].copy(deep=True)) for i, df in enumerate(df_list)
-                                                    for ind in
-                                                    slice_dataframe(df) if
-                                                    "Occurrences" not in df.columns[ind]]
-
-
-def slice_dataframe(df):
-    """
-
-    :param df:
-    :return:
-    """
-    sliced_df = []
-    for col in SLICEABLE_COLUMNS:
-        if col in df.columns:
-            if col == "Occurrences":
-                if DROP_ONE_OFFS:
-                    sliced_df.append(
-                        [df.columns.get_loc("Sequence"), df.columns.get_loc("PageSequence"), df.columns.get_loc(col)])
-                else:
-                    sliced_df.append(
-                        [df.columns.get_loc("Sequence"), df.columns.get_loc(col)])
-            else:
-                sliced_df.append([df.columns.get_loc("Sequence"), df.columns.get_loc(col)])
-    return sliced_df
-
-
-def merge_sliced_df(sliced_df_list, expected_size):
-    """
-
-    :param sliced_df_list:
-    :param expected_size:
-    :return:
-    """
-    final_list = [pd.DataFrame()] * expected_size
-    # print([df.shape for i, df in sliced_df_list if i == 0])
-    for i, df in sliced_df_list:
-        # print(df.columns)
-        if len(final_list[i]) == 0:
-            # print("new")
-            final_list[i] = df.copy(deep=True)
-        else:
-            # print("merge")
-            final_list[i] = pd.merge(final_list[i], df, how='left', on='Sequence')
-    return final_list
-
-
-def multiprocess_make(files, destination, merged_filename):
+def initialize_make(files: list, destination: str, merged_filename: str):
     """
 
     :param files:
@@ -420,30 +356,27 @@ def multiprocess_make(files, destination, merged_filename):
     :param merged_filename:
     :return:
     """
-    global FEWER_THAN_CPU, MAX_DEPTH, NUM_CPU, BATCH_SIZE
+    global FEWER_THAN_CPU, MAX_DEPTH
     batch_size = BATCH_SIZE
-    NUM_CPU = cpu_count()
-    batching, batches = compute_batches(files, batch_size)
-    num_chunks = compute_initial_chunksize(len(files)) if not batching else compute_initial_chunksize(batch_size)
+    # Number of available CPUs, governs size of pool/number of daemon worker.
+    num_cpu = cpu_count()
+    batching, batches = multi_utils.compute_batches(files, batch_size)
+    num_chunks, FEWER_THAN_CPU, MAX_DEPTH = setup_parameters(batch_size, batching, files, num_cpu)
 
-    FEWER_THAN_CPU = num_chunks == len(files) if not batching else batch_size + 1 <= NUM_CPU
-    MAX_DEPTH = compute_max_depth(files, num_chunks, 0) if not batching else compute_max_depth([0] * (batch_size + 1),
-                                                                                               num_chunks, 0)
-    logger.info("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
-    logger.info("Using {} workers...".format(NUM_CPU))
-    pool = Pool(NUM_CPU)
+    logger.debug("BATCH_SIZE: {} MAX_DEPTH: {} NUM_FILES: {}".format(batch_size, MAX_DEPTH, len(files)))
+    logger.debug("Using {} workers...".format(num_cpu))
+    if batching: logger.debug("With batching")
+    pool = Pool(num_cpu)
 
     if not batching:
-        print("No batching")
-        df = process(files, pool, num_chunks)
+        df = distribute_tasks(files, pool, num_chunks)
     else:
-        print("Batching")
         df = None
         for batch_num, batch in enumerate(batches):
             logging.info("Working on batch: {} with {} file(s)...".format(batch_num + 1, len(batch)))
-            df = process(batch, pool, num_chunks, df)
+            df = distribute_tasks(batch, pool, num_chunks, df)
 
-    print(df.iloc[0])
+    logging.debug(df.iloc[0])
     sequence_preprocess(df)
     event_preprocess(df)
     add_loop_columns(df)
@@ -461,7 +394,22 @@ def multiprocess_make(files, destination, merged_filename):
     logger.info("Multi done")
 
 
-def process(files, pool, num_chunks, df_prev=None):
+def setup_parameters(batch_size, batching, files, num_cpu):
+    if not batching:
+        num_chunks = multi_utils.compute_initial_chunksize(len(files), num_cpu)
+        fewer_than_cpu = num_chunks == len(files)
+        max_depth = multi_utils.compute_max_depth(files, num_chunks, 0,
+                                                  fewer_than_cpu)
+    else:
+        num_chunks = multi_utils.compute_initial_chunksize(batch_size, num_cpu)
+        fewer_than_cpu = batch_size + 1 <= num_cpu
+        max_depth = multi_utils.compute_max_depth(
+            [0] * (batch_size + 1),
+            num_chunks, 0, fewer_than_cpu)
+    return num_chunks, fewer_than_cpu, max_depth
+
+
+def distribute_tasks(files, pool, num_chunks, df_prev=None):
     """
 
     :param files:
@@ -470,8 +418,8 @@ def process(files, pool, num_chunks, df_prev=None):
     :param df_prev:
     :return:
     """
-    logger.info("chunks: {} fewer: {} max_depth: {}".format(num_chunks, FEWER_THAN_CPU, MAX_DEPTH))
-    logger.info("Number of files: {}".format(len(files)))
+    # logger.info("chunks: {} fewer: {} max_depth: {}".format(num_chunks, FEWER_THAN_CPU, MAX_DEPTH))
+    logger.debug("Number of files: {}".format(len(files)))
     logger.info("Multi start...")
     df_list = pool.map(read_file, files)
 
@@ -480,52 +428,27 @@ def process(files, pool, num_chunks, df_prev=None):
         # df_list.append(df_prev)
 
     logger.info("Distributing tasks...")
-    df = distribute_df_slices(pool, df_list, num_chunks, 0, df_prev)
+    df = process_dataframes(pool, df_list, num_chunks, 0, df_prev)
     return df
-
-
-def compute_initial_chunksize(number_of_files):
-    """
-
-    :param number_of_files:
-    :return:
-    """
-    if number_of_files > NUM_CPU:
-        return int(number_of_files / 2)
-    else:
-        return number_of_files
-
-
-def compute_batches(files, batchsize):
-    """
-
-    :param files:
-    :param batchsize:
-    :return:
-    """
-    if len(files) > 4:
-        return True, merge_small_partition([files[i:i + batchsize] for i in range(0, len(files), batchsize)])
-    else:
-        return False, files
 
 
 def read_file(filename):
     """
     Initialize dataframe using specified filename, do some initial prep if necessary depending on global vars
     (specified via arguments)
-    :param filename:
-    :return:
+    :param filename: filename to read, no exists_check because files are loaded from a specified directory
+    :return: loaded (maybe modified) pandas dataframe
     """
     logging.info("Reading: {}".format(filename))
-    df = pd.read_csv(filename, compression="gzip")
+    df: DataFrame = pd.read_csv(filename, compression="gzip")
     # print(df.shape)
     # Drop journeys of length 1
     if DROP_ONES:
-        print("dropping ones")
+        logging.debug("Dropping ones")
         df.query("PageSeq_Length > 1", inplace=True)
     # Keep ONLY journeys of length 1
     elif KEEP_ONES:
-        print("keeping only ones")
+        logging.debug("Keeping only ones")
         df.query("PageSeq_Length == 1", inplace=True)
     # If
     if DROP_ONE_OFFS:
@@ -535,40 +458,13 @@ def read_file(filename):
     return df
 
 
-def delete_vars(x):
-    """
-
-    :param x:
-    :return:
-    """
-    if isinstance(x, list):
-        for xs in x:
-            del xs
-    del x
-
-
-def compute_max_depth(test_list, chunks, depth):
-    """
-
-    :param test_list:
-    :param chunks:
-    :param depth:
-    :return:
-    """
-    partitions = partition_list(test_list, chunks)
-    if len(test_list) > 1:
-        new_lst = [0 for _ in partitions]
-        return compute_max_depth(new_lst, (lambda x: int(x / 2) if int(x / 2) > 0 else 1)(chunks), depth + 1)
-    else:
-        return depth
-
-
 def generate_file_list(source_dir, stub):
     """
-
-    :param source_dir:
-    :param stub:
-    :return:
+    Initialize list of files to read from a specified directory. If stub is not empty, filter files to be read
+    based on whether their filename includes the stub.
+    :param source_dir: Source directory
+    :param stub: Filename stub for file filtering
+    :return: a list of files
     """
     file_list = [os.path.join(source_dir, file) for file in os.listdir(source_dir)]
     if stub is not None:
@@ -578,21 +474,24 @@ def generate_file_list(source_dir, stub):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Make datasets module')
+    parser = argparse.ArgumentParser(description='Module that produces a merged, metadata-aggregated and '
+                                                 'preprocessed dataset (.csv.gz), given a source directory '
+                                                 'containing raw BigQuery extract dataset(s). Merging is '
+                                                 'skipped if only one file is provided.')
     parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
     parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
     parser.add_argument('output_filename', help='Naming convention for resulting merged dataframe file.')
-    parser.add_argument('--drop_one_offs', action='store_true')
-    parser.add_argument('--keep_only_len_one', action='store_true')
-    parser.add_argument('--drop_len_one', action='store_true')
-    parser.add_argument('--filename_stub', nargs="?")
+    parser.add_argument('-doo', '--drop_one_offs', action='store_true',
+                        help='Drop journeys occurring only once (on a daily basis, '
+                             'or over approximately 3 day periods).')
+    parser.add_argument('-kloo', '--keep_len_one_only', action='store_true',
+                        help='Keep ONLY journeys with length 1 ie journeys visiting only one page.')
+    parser.add_argument('-dlo', '--drop_len_one', action='store_true',
+                        help='Drop journeys with length 1 ie journeys visiting only one page.')
+    parser.add_argument('-f', '--filename_stub', default=None, type=str,
+                        help='Filter files to be loaded based on whether their filenames contain specified stub.')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
-
-    # Set up variable values from parsed arguments
-    DROP_ONE_OFFS = args.drop_one_offs
-    DROP_ONES = args.drop_len_one
-    KEEP_ONES = args.keep_only_len_one
-    print(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES)
 
     DATA_DIR = os.getenv("DATA_DIR")
     source_directory = os.path.join(DATA_DIR, args.source_directory)
@@ -604,14 +503,41 @@ if __name__ == "__main__":
     logging.config.fileConfig(LOGGING_CONFIG)
     logger = logging.getLogger('make_dataset')
 
-    logger.info("Loading data")
+    if args.quiet:
+        logging.disable(logging.DEBUG)
 
-    to_load = generate_file_list(source_directory, filename_stub)
-    if len(to_load) == 1:
-        SINGLE = True
+    if os.path.isdir(source_directory):
+        # Set up variable values from parsed arguments
+        DROP_ONE_OFFS = args.drop_one_offs
+        DROP_ONES = args.drop_len_one
+        KEEP_ONES = args.keep_len_one_only
+        # pretty_tab = "".join(["\t" for i in range(12)])
+        logger.info(
+            "Data exclusion parameters:\nDrop one-off journeys: {}"
+            "\nDrop journeys of length 1: {}"
+            "\nKeep journeys only of length 1: {}".format(DROP_ONE_OFFS, DROP_ONES, KEEP_ONES))
 
-    if not os.path.isdir(dest_directory):
-        logging.info("Specified destination directory does not exist, creating...")
+        logger.info("Loading data...")
 
-    multiprocess_make(to_load, dest_directory, final_filename + ".csv.gz")
+        to_load = generate_file_list(source_directory, filename_stub)
+        if len(to_load) > 0:
+            if len(to_load) <= BATCH_SIZE:
+                SINGLE = True
+
+            if not os.path.isdir(dest_directory):
+                logging.info(
+                    "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
+                os.mkdir(dest_directory)
+
+            initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+        else:
+            logging.info(
+                "Specified source directory \"{}\" contains no target files.".format(source_directory))
+
+    else:
+        logging.info("Specified source directory \"{}\" does not exist, cannot read files.".format(source_directory))
+
+    # list2 = [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)]
+    # print(list2)
+    # print(aggregate_dict(list2))
 
