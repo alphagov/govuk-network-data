@@ -89,13 +89,13 @@ def write_node_edge_files(source_filename, dest_filename):
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
     with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
-        file.write("Source node, Destination Node, Weight\n")
+        file.write("Source node, Destination Node, Weight\n".encode())
         for key, value in edges.items():
-            file.write(key[0] + "," + key[1] + "," + str(value) + "\n")
+            file.write("{},{},{}\n".format(key[0], key[1] ,value).encode())
     logger.info("Writing node list to file...")
     with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
         for node in nodes:
-            file.write(node + "\n")
+            file.write(str(node + "\n").encode())
 
 
 if __name__ == "__main__":
