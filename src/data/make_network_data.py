@@ -4,6 +4,7 @@ import os
 import sys
 from ast import literal_eval
 from collections import Counter
+import gzip
 
 import pandas as pd
 
@@ -77,7 +78,7 @@ def nodes_from_edgelist(edgelist):
 
 def write_node_edge_files(source_filename, dest_filename):
     """
-    Read dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
+    Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
     :param source_filename: dataframe to be loaded
     :param dest_filename: filename prefix for node and edge files
     """
@@ -87,12 +88,12 @@ def write_node_edge_files(source_filename, dest_filename):
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
-    with open(dest_filename + "_edges.csv", "w") as file:
+    with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
         file.write("Source node, Destination Node, Weight\n")
         for key, value in edges.items():
             file.write(key[0] + "," + key[1] + "," + str(value) + "\n")
     logger.info("Writing node list to file...")
-    with open(dest_filename + "_nodes.csv", "w") as file:
+    with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
         for node in nodes:
             file.write(node + "\n")
 
