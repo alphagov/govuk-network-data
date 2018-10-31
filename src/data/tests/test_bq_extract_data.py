@@ -2,14 +2,16 @@
 # python -m pytest tests/
 import bq_extract_data
 
+
 def test_find_query():
     # only returns .sql files, addresses issue 10 somewhat
-    assert bq_extract_data.find_query("test_bq_extract_data.py", "./tests") == None
+    assert bq_extract_data.find_query("test_bq_extract_data.py", "./tests") is None
     assert bq_extract_data.find_query("quer", "./tests") == "./tests/query.sql"
     # returns first file to match query_arg, bug or feature?
     assert bq_extract_data.find_query("", "./tests") == "./tests/test.sql"
     # potential bug spotted
     # assert bq_extract_data.find_query("query.sql", "./tests") == "./tests/query.sql"
+
 
 # test removing linebreaks from sql query file
 # add space for line breaks
@@ -17,6 +19,7 @@ def test_read_query():
     assert bq_extract_data.read_query("./tests/test.sql") == "SELECT * FROM tables WHERE thing < 5"
     # handles indent as represented by two-spaces
     assert bq_extract_data.read_query("./tests/query.sql") == "SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     TIME_STAMP))     WHERE PageSeq_Length > 1"
+
 
 def test_change_timestamp():
     """
@@ -40,6 +43,7 @@ def test_find_read_change_timestamp_combined():
     and so that the correct table is read in BigQuery.
     One table per day.
     """
-    assert  bq_extract_data.change_timestamp(bq_extract_data.read_query(bq_extract_data.find_query("query", "./tests")), date = "2018-12-31", dialect =  "standard") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     20181231))     WHERE PageSeq_Length > 1'
+    assert bq_extract_data.change_timestamp(bq_extract_data.read_query(bq_extract_data.find_query("query", "./tests")),
+                                            date = "2018-12-31", dialect =  "standard") == 'SELECT * FROM TABLE_DATE_RANGE([govuk-bigquery-analytics:1337.ga_sessions_],     20181231))     WHERE PageSeq_Length > 1'
 
 
