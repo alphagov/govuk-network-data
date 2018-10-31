@@ -63,10 +63,9 @@ community guidance beforehand.
 
 # What this does
 
-This package arms data scientists with the tools to answer the hardest questions that people are asking about thei
- sequence of pages that users are visiting and the type of behaviour those users are displaying.  
+This package arms data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.
 
-* A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journies that 
+* A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journeys that 
 users travel in a session.   
 * Express this data as a graph with pages visited expressed as nodes and directed movement between pages as edges.   
 
