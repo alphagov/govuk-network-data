@@ -35,7 +35,9 @@ This package arms data scientists with the tools to answer the hardest questions
 * A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journies that users travel in a session.   
 * Express this data as a graph with pages visited expressed as nodes and directed movement between pages as edges.   
 
-<img src="network_data_pipeline.png" width="200" height="300" />
+![alt text](network_data_pipeline.png)
+
+
 
 # Extracting raw data from big query
 This produces a compressed csv in the destination directory (raw_bq_extract) where each row is a specific user journey (including events). However this raw data is messy and needs preprocessing to be analytically useful (see next section: 'Converting raw big query data to processed_journey data').
