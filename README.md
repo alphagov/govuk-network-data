@@ -1,38 +1,72 @@
 # govuk-network-data
-> Data pipeline for extraction and preprocessing of BigQuery user journey data.
+> Making better use of BigQuery user journey data.
 
-A data pipeline for extracting and preprocessing BigQuery user journey data. The data captures the sequences of pages visited by users and how often these journeys occur. Additional metadata and Event data (what users do on their journey) is also provided.  
+A data pipeline for extracting and preprocessing BigQuery user journey data. The data captures the sequences of pages
+ visited by users and how often these journeys occur. Additional metadata and Event data (what users do on their journey)
+  is also provided.  
 
 # Installing / Getting started
+When following this guidance, code is executed in the terminal unless specified otherwise.  
 
-You need access and a key to GOV.UK BigQuery analytics (govuk-bigguery-analytics) to extract raw data for this pipeline. People to ask about this are senior performance analysts.
+You need permissions and a key to GOV.UK BigQuery analytics (govuk-bigguery-analytics) to extract raw data for this 
+pipeline. People to ask about this are senior performance analysts or search the GDS wiki for guidance.
 
-Clone this repo and then set up your python 3.6.0 virtual environment 
+Clone this repo using:  
+ 
+`git clone git@github.com:ukgovdatascience/govuk-network-data.git`  
 
-## Python version
-Python 3.6.0
-
-## Virtual environment
-Create a new python 3.6.0 virtual environment using your favourite virtual environment manager (you may need pyenv to specify python version). 
-
-Source the environment variables from the .envrc file either using direnv (`direnv allow`) or `source .envrc`.  
-You can check they're loaded using `echo $NAME_OF_ENVIRONMENT_VARIABLE` or `printenv`.
-
-Then install required python packages:  
-
-`pip install -r requirements.txt`
+in your terminal.  
 
 ## Where to put your BigQuery key
+After cloning the repo, navigate to it using:  
+
+`cd govuk-network-data`  
+
+Next, create a directory to hold your private key.
 
 `mkdir key`
 
-then put the json file in there
+then place the private key (.json) in this folder. There should only be one key.  
+
+## Python version
+You will need the python interpreter version [Python 3.6.0](https://www.python.org/downloads/release/python-360/).  
+
+## Virtual environment
+Create a new python 3.6.0 virtual environment using your favourite virtual environment 
+manager (you may need `pyenv` to specify python version; which you can get using `pip install pyenv`). 
+
+If new to python, an easy way to do this is using the PyCharm community edition and opening this repo as a project. 
+You can then specify what python interpreter to use (as 
+explained [here](https://stackoverflow.com/questions/41129504/pycharm-with-pyenv)).  
+
+## Setting Environment variables
+Either source the environment variables from the .envrc file either using direnv (`direnv allow`) or `source .envrc` in the command line or add this EnvFile to the pycharm project run configurations, as described here: 
+https://stackoverflow.com/questions/42708389/how-to-set-environment-variables-in-pycharm
+You can check they're loaded using `echo $NAME_OF_ENVIRONMENT_VARIABLE` or `printenv`.  
+
+## Using pip to install necessary packages
+Then install required python packages:  
+
+`pip install -r requirements.txt`  
+
+We provide you with more than the minimal number of packages you need to run the data pipeline. We provide some 
+convenience packages for reviewing notebooks etc.  
+
+Alternatively, you can review the packages that are imported and manually install those that you think are necessary 
+using `pip install` if you want more control over the process. 
+
+## BigQuery cost caveat
+
+You are now ready to use this package to pipe data from BigQuery through a pandas dataframe and 
+output as a bunch of compressed csv. Consider the cost of the query you intend to run and read all
+community guidance beforehand.  
 
 # What this does
 
-This package arms data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.  
+This package arms data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.
 
-* A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journies that users travel in a session.   
+* A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journeys that 
+users travel in a session.   
 * Express this data as a graph with pages visited expressed as nodes and directed movement between pages as edges.   
 
 ![alt text](network_data_pipeline.png)
@@ -40,7 +74,9 @@ This package arms data scientists with the tools to answer the hardest questions
 
 
 # Extracting raw data from big query
-This produces a compressed csv in the destination directory (raw_bq_extract) where each row is a specific user journey (including events). However this raw data is messy and needs preprocessing to be analytically useful (see next section: 'Converting raw big query data to processed_journey data').
+This produces a compressed csv in the destination directory (raw_bq_extract) where each row is a specific user journey
+ (including events). However this raw data is messy and needs preprocessing to be analytically useful
+  (see next section: 'Converting raw big query data to processed_journey data').
 
 - Run `python src/data/bq_extract_data.py --help` to list required positional arguments:  
   - __start_date__ - Start date in Y-m-d, eg 2018-12-31
@@ -53,12 +89,27 @@ This produces a compressed csv in the destination directory (raw_bq_extract) whe
   - The default SQL dialect is legacy so specify `--standard` if needed. 
   - Set verbosity as quiet `--quiet` to reduce logging output.
 
-First, save your sql query 'query_name.sql' in the $QUERIES_DIR directory.  
+First, save your sql query 'query_name.sql' in the `$QUERIES_DIR` directory.  
 
-Here's an example of a command execution: 
+Here's an example of a command execution (please consider your query carefully, as this is not free!): 
 
 `python src/data/bq_extract_data.py 2018-10-18 2018-10-18 raw_output_dir test prelim_meta_standard_query_with_pageseq --standard`  
-In the above example, the SQL query exists as 'prelim_meta_standard_query_with_pageseq.sql' in the $QUERIES_DIR directory.
+
+In the above example, the SQL query exists as `prelim_meta_standard_query_with_pageseq.sql` in the `$QUERIES_DIR` directory.
+
+## Managing expectations
+
+The test code will take awhile to run (less than 10 mins). You should use `caffeinate` or prevent your machine
+ from sleeping during this period.  
+ 
+> Don't panic
+
+While the code is running it will log it's progress. This will appear in the terminal. 
+Remember that the 200 code in the Debug level logging tells us that the request was
+ received and understood and is being processed.  
+ 
+ Upon completion you should be notified as to the number of rows, time to run and where the output 
+ was saved.
 
 # Converting raw big query data to processed_journey data
 
@@ -136,8 +187,16 @@ and test is the prefix for the node and edge filenames.
 git clone https://github.com/ukgovdatascience/govuk-network-data
 cd govuk-network-data/
 
-```
+git pull
+git checkout -b feature/something-awesome
+# make changes
+git push origin feature/something-awesome
+# create pull request with branch on Github
+# request a review
 
+```
+Develop as a separate branch and push to Github. Create a pull request and ensure all unit tests pass. 
+Create new units tests for any extra functions.  
 ## Unit tests
 pytest is used for unit testing. If you haven't installed the requirements, then install using pip: 
 
@@ -169,4 +228,4 @@ See `CONTRIBUTING.md`
 ## References
 
 ## License
-
+See LICENSE
