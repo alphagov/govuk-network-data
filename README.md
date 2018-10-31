@@ -57,13 +57,13 @@ using `pip install` if you want more control over the process.
 
 ## BigQuery cost caveat
 
-You are now ready to use this package to pipe data from BigQuery through a pandas dataframe and 
-output as a bunch of compressed csv. Consider the cost of the query you intend to run and read all
+You are now ready to use this package to pipe data from BigQuery through a pandas dataframe and save your output locally as 
+several compressed csv files (containing tabular data). Consider the cost of the query you intend to run and read all
 community guidance beforehand.  
 
 # What this does
 
-This package arms data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.
+This package equips data scientists with the tools to answer the hardest questions that people are asking about the sequence of pages that users are visiting and the type of behaviour those users are displaying.
 
 * A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journeys that 
 users travel in a session.   
@@ -104,7 +104,7 @@ The test code will take awhile to run (less than 10 mins). You should use `caffe
  
 > Don't panic
 
-While the code is running it will log it's progress. This will appear in the terminal. 
+While the code is running it will log its progress. This will appear in the terminal. 
 Remember that the 200 code in the Debug level logging tells us that the request was
  received and understood and is being processed.  
  
