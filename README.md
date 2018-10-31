@@ -35,6 +35,9 @@ This package arms data scientists with the tools to answer the hardest questions
 * A data pipeline that produces data in a convenient format to explore the GOV.UK page sequences or journies that users travel in a session.   
 * Express this data as a graph with pages visited expressed as nodes and directed movement between pages as edges.   
 
+![alt text](network_data_pipeline.png)
+
+
 
 # Extracting raw data from big query
 This produces a compressed csv in the destination directory (raw_bq_extract) where each row is a specific user journey (including events). However this raw data is messy and needs preprocessing to be analytically useful (see next section: 'Converting raw big query data to processed_journey data').
@@ -104,7 +107,27 @@ Here's some definitions of the columns in the resulting dataframe:
 
 # Converting processed_journey data to functional network data
 
-TBC...
+This creates two compressed csvs, one containing edges (and their weights = occurrences) and the other nodes.
+These can be converted into many graph file formats or be read into graph processing software directly.
+
+- Run `python src/data/make_network_data.py -h` to list required positional arguments:  
+  - __source_directory__ - Source directory for input dataframe file(s).  
+  - __input_filename__ - Source filename for input dataframe file(s).
+  - __dest_directory__ - Specialized destination directory for output files.
+  - __output_filename__ - Naming convention for resulting node and edge files.
+
+- Other optional arguments:
+  - __-q, --quiet__ -Turn off debugging logging.  
+
+You need to create a destination directory for the node and edge files:  
+`mkdir data/network_data`
+  
+Here's an example of a command execution:  
+`python src/data/make_network_data.py processed_journey test_output network_data test`
+
+where processed_journey is the directory containing output from make_dataset, test_output is 
+test_output.csv.gz, network_data is the directory that the node and edge files will be exported to 
+and test is the prefix for the node and edge filenames.
 
 # Developing
 
