@@ -40,7 +40,8 @@ You can then specify what python interpreter to use (as
 explained [here](https://stackoverflow.com/questions/41129504/pycharm-with-pyenv)).  
 
 ## Setting Environment variables
-Source the environment variables from the `.envrc` file either using direnv (`direnv allow`) or `source .envrc`.  
+Either source the environment variables from the .envrc file either using direnv (`direnv allow`) or `source .envrc` in the command line or add this EnvFile to the pycharm project run configurations, as described here: 
+https://stackoverflow.com/questions/42708389/how-to-set-environment-variables-in-pycharm
 You can check they're loaded using `echo $NAME_OF_ENVIRONMENT_VARIABLE` or `printenv`.  
 
 ## Using pip to install necessary packages
