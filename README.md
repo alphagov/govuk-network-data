@@ -139,7 +139,7 @@ cd govuk-network-data/
 ```
 
 ## Unit tests
-pytest is used for unit testing. Install using pip: 
+pytest is used for unit testing. If you haven't installed the requirements, then install using pip: 
 
 `pip install -U pytest`
 
