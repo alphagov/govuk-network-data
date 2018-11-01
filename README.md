@@ -181,6 +181,103 @@ where processed_journey is the directory containing output from make_dataset, te
 test_output.csv.gz, network_data is the directory that the node and edge files will be exported to 
 and test is the prefix for the node and edge filenames.
 
+## Using the network data
+
+The two dataframes for nodes and edges represent the minimal way to produce a network in a [tidy fashion](https://www.data-imaginist.com/2017/introducing-tidygraph/). 
+Given the size of the data (if over more than a few days) you might consider building a graph database to speed up 
+your analysis (the nodes and edges csv format is also amenable to standard network science tools).  
+
+Install Docker on your machine using software management centre (if new to Docker, we suggest you do the tutorial). 
+
+From the terminal run:  
+
+```bash
+
+docker run \
+    --publish=7474:7474 --publish=7687:7687 \
+    --volume=$HOME/neo4j/data:/data \
+    --volume=$HOME/neo4j/logs:/logs \
+    --volume=$HOME/neo4j/import:/import \
+    --env=NEO4J_AUTH=none \
+    neo4j
+    
+    # for docker neo4j setup see
+    # https://neo4j.com/developer/docker-23/
+```
+
+Open the local host `http://localhost:7474/browser/` in your browser after the instance has started up. You'll see Neo4j 
+running locally.  
+
+### Move your nodes and edges csv
+Notice how one of the arguments creates an import folder in the newly created `neo4j` dir. This 
+is in your `$HOME` dir. We need to move the .csv we wish to load into neo4j into the  aforementioned 
+`/import` dir. Copy them across.  
+
+### Restart neo4j
+
+Stop the neo4j instance using Ctrl + C in the terminal where it is running. Restart it using the above code chunk.  
+
+### Load the network into neo4j
+
+Open the local host `http://localhost:7474/browser/` in your browser after the instance has started up. You'll see Neo4j 
+running locally. There's a prompt where you can enter Cypher commands (the Neo4j language). Run the following code 
+to load in your data, adjusting for filename differences and different header names.  
+
+#### Nodes
+
+Here our csv has the header "url".  
+
+```bash
+// Create nodes for each unique page
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS FROM "file:///test_nodes.csv" AS row
+CREATE (:Page {url:row.url});
+
+```
+
+This should populate the graph database with nodes (which are page urls in our case). We then index our nodes to speed things up 
+when creating relationships.  
+
+```bash
+
+CREATE INDEX ON :Page(url);
+
+```
+
+#### Edges
+
+Here our csv for edges has the headers; "source", "destination" (both page urls) and "weights" (occurrences). This will 
+take a few seconds to run for one days data.
+
+```bash
+
+USING PERIODIC COMMIT
+LOAD CSV WITH HEADERS FROM "file:///test_edges.csv" AS row
+MATCH (source:Page {url: row.source})
+MATCH (destination:Page {url: row.destination})
+MERGE (source)-[:LINKS_TO]->(destination);
+
+```
+
+You can check the correct graph database has been instantiated by calling the schema, or viewing some nodes and edges.  
+
+```bash
+
+CALL db.schema();
+```
+
+or 
+
+```bash
+MATCH (n) RETURN n LIMIT 500
+```
+
+This should look like a bunch of nodes and edges with direction. You can add weights to the edges and colour the nodes by 
+Page metadata type if so inclined.  
+
+There's plenty of software available to manage this type of data, don't feel constrained to use Neo4j
+ (although this is a good graph database if storing lots and running nuanced queries).  
+
 # Developing
 
 ```shell
