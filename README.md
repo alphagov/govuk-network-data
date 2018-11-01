@@ -235,7 +235,7 @@ CREATE (:Page {url:row.url});
 
 ```
 
-This should populate with nodes or page urls in our case. We then index our nodes to speed things up 
+This should populate the graph database with nodes (which are page urls in our case). We then index our nodes to speed things up 
 when creating relationships.  
 
 ```bash
@@ -246,7 +246,8 @@ CREATE INDEX ON :Page(url);
 
 #### Edges
 
-Here our csv for edges has the headers; "source", "destination" (both page urls) and "weights" (occurrences).
+Here our csv for edges has the headers; "source", "destination" (both page urls) and "weights" (occurrences). This will 
+take a few seconds to run for one days data.
 
 ```bash
 
