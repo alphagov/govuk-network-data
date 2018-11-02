@@ -250,6 +250,7 @@ Here our csv for edges has the headers; "source", "destination" (both page urls)
 take a few seconds to run for one days data.
 
 ```bash
+
 USING PERIODIC COMMIT
 LOAD CSV WITH HEADERS FROM "file:///test_edges.csv" AS row
 MATCH (source:Page {url: row.source})
@@ -275,7 +276,6 @@ This should look like a bunch of nodes and edges with direction. You can add wei
 Page metadata type if so inclined.  
 
 There's plenty of software available to manage this type of data, don't feel constrained to use Neo4j
- (although this is a good graph database if storing lots and running nuanced queries). 
  
 ### Nuanced queries
 
@@ -295,6 +295,7 @@ Consult the (Neo4j)[https://neo4j.com/docs/developer-manual/current/cypher/claus
 ### Visualising the network
 
 People like visualisations, use Gephi or any of the plenty of suitable tools for doing this.  
+
 
 # Developing
 
@@ -324,6 +325,19 @@ Following installation navigate to the appropriate folder to run tests. For exam
 or
 `python3 -m pytest -v tests/`  
 
+### Testing the pipeline
+
+Some functions change panda dataframes with specific column names. To unit test these functions we included a small pickled pandas dataframe derived from the top 100 rows of a query on user journey data and metadata named 'test_page_meta_htype_2018-10-15.csv.gz'. 
+
+```
+import pandas as pd
+df = pd.read_csv('test_page_meta_htype_2018-10-15.csv.gz', nrows=100, compression='gzip',
+                   error_bad_lines=False)
+
+df.to_pickle("user_journey_df.pkl")
+
+```
+This was used as input to those functions that take `user_journey_df` as a parameter.
 
 ## Contributing
 See `CONTRIBUTING.md`  
