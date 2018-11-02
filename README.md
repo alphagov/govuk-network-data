@@ -275,7 +275,26 @@ This should look like a bunch of nodes and edges with direction. You can add wei
 Page metadata type if so inclined.  
 
 There's plenty of software available to manage this type of data, don't feel constrained to use Neo4j
- (although this is a good graph database if storing lots and running nuanced queries).  
+ (although this is a good graph database if storing lots and running nuanced queries). 
+ 
+### Nuanced queries
+
+Neo4j is very fast. You can run nuanced queries quickly. For example:   
+
+```
+
+MATCH (n)
+WHERE n.url STARTS WITH '/government/organisations/department-for-education'
+RETURN n
+LIMIT 500;
+
+```
+
+Consult the (Neo4j)[https://neo4j.com/docs/developer-manual/current/cypher/clauses/] manual for further guidance.
+
+### Visualising the network
+
+People like visualisations, use Gephi or any of the plenty of suitable tools for doing this.  
 
 # Developing
 
