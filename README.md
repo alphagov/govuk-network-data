@@ -306,6 +306,19 @@ Following installation navigate to the appropriate folder to run tests. For exam
 or
 `python3 -m pytest -v tests/`  
 
+### Testing the pipeline
+
+Some functions change panda dataframes with specific column names. To unit test these functions we included a small pickled pandas dataframe derived from the top 100 rows of a query on user journey data and metadata named 'test_page_meta_htype_2018-10-15.csv.gz'. 
+
+```
+import pandas as pd
+df = pd.read_csv('test_page_meta_htype_2018-10-15.csv.gz', nrows=100, compression='gzip',
+                   error_bad_lines=False)
+
+df.to_pickle("user_journey_df.pkl")
+
+```
+This was used as input to those functions that take `user_journey_df` as a parameter.
 
 ## Contributing
 See `CONTRIBUTING.md`  
