@@ -246,16 +246,15 @@ CREATE INDEX ON :Page(url);
 
 #### Edges
 
-Here our csv for edges has the headers; "source", "destination" (both page urls) and "weights" (occurrences). This will 
+Here our csv for edges has the headers; "source", "destination" (both page urls) and "weight" (occurrences). This will 
 take a few seconds to run for one days data.
 
 ```bash
-
 USING PERIODIC COMMIT
 LOAD CSV WITH HEADERS FROM "file:///test_edges.csv" AS row
 MATCH (source:Page {url: row.source})
 MATCH (destination:Page {url: row.destination})
-MERGE (source)-[:LINKS_TO]->(destination);
+MERGE (source)-[:LINKS_TO {occurrences:row.weight}]->(destination);
 
 ```
 
