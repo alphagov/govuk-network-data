@@ -12,8 +12,8 @@ def test_has_repetition():
     assert build_features.has_repetition(["page1", "page2", "page3"]) is False
     # Yields true due to self-loop, should be run on collapsed-loop page lists
     assert build_features.has_repetition(["page1", "page1", "page1"]) is True
-    assert build_features.has_repetition(["page1", "page2", "page3", "page1"]) is True
-    assert build_features.has_repetition(["page2", "page3", "page2"]) is True
+    assert build_features.has_repetition(["page1", "page2", "page3", "page1", "page4"]) is True
+    assert build_features.has_repetition(["page2", "page3", "page2", "page1"]) is True
 
 
 def test_count_event_cat():
