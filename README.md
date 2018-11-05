@@ -223,6 +223,19 @@ Open the local host `http://localhost:7474/browser/` in your browser after the i
 running locally. There's a prompt where you can enter Cypher commands (the Neo4j language). Run the following code 
 to load in your data, adjusting for filename differences and different header names.  
 
+#### Clear any nodes or edges
+
+Ensure a clean graph database by clearing any old nodes or edges stored.  
+
+```bash
+
+MATCH (n)
+DETACH DELETE n
+
+```
+
+We can now be confident loading our data in.  
+
 #### Nodes
 
 Here our csv has the header "url".  
@@ -254,7 +267,7 @@ USING PERIODIC COMMIT
 LOAD CSV WITH HEADERS FROM "file:///test_edges.csv" AS row
 MATCH (source:Page {url: row.source})
 MATCH (destination:Page {url: row.destination})
-MERGE (source)-[:LINKS_TO {occurrences:row.weight}]->(destination);
+MERGE (source)-[:MOVES_TO {occurrences:row.weight}]->(destination);
 
 ```
 
