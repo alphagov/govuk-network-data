@@ -94,7 +94,7 @@ First, save your sql query 'query_name.sql' in the `$QUERIES_DIR` directory.
 
 Here's an example of a command execution (please consider your query carefully, as this is not free!): 
 
-`python src/data/bq_extract_data.py 2018-10-18 2018-10-18 raw_output_dir test prelim_meta_standard_query_with_pageseq --standard`  
+`python src/data/bq_extract_data.py 2018-10-18 2018-10-18 raw_bq_extract raw_output_filename prelim_meta_standard_query_with_pageseq --standard`  
 
 In the above example, the SQL query exists as `prelim_meta_standard_query_with_pageseq.sql` in the `$QUERIES_DIR` directory.
 
@@ -134,7 +134,7 @@ This processing script can also merge different inputs such as data extracts fro
   - __-q, --quiet__ -Turn off debugging logging.  
   
 Here's an example of a command execution:  
-`python src/data/make_dataset.py raw_bq_extract processed_journey test_output -doo`
+`python src/data/make_dataset.py raw_bq_extract processed_journey processed_filename -doo`
 
 Here's some definitions of the columns in the resulting dataframe:
 
@@ -175,7 +175,7 @@ You need to create a destination directory for the node and edge files:
 `mkdir data/network_data`
   
 Here's an example of a command execution:  
-`python src/data/make_network_data.py processed_journey test_output network_data test`
+`python src/data/make_network_data.py processed_journey processed_filename network_data network_filename`
 
 where processed_journey is the directory containing output from make_dataset, test_output is 
 test_output.csv.gz, network_data is the directory that the node and edge files will be exported to 
