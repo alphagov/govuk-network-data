@@ -30,6 +30,9 @@ var/
 *.manifest
 *.spec
 
+#pyenv environment list
+list/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
