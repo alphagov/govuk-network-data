@@ -4,7 +4,6 @@ import argparse
 import itertools
 import logging.config
 import os
-import sys
 from collections import Counter
 from multiprocessing import Pool, cpu_count
 
@@ -12,12 +11,9 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(src, "data"))
-sys.path.append(os.path.join(src, "features"))
-import multiprocess_utils as multi_utils
-import preprocess as prep
-import build_features as feat
+import src.data.multiprocess_utils as multi_utils
+import src.data.preprocess as prep
+import src.features.build_features as feat
 
 # TODO: Integrate in the future
 # AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
@@ -171,6 +167,9 @@ def add_loop_columns(user_journey_df):
     user_journey_df['Page_Seq_NL'] = user_journey_df['Page_List_NL'].map(lambda x: ">>".join(x))
     # Count occurrences of de-looped journeys, most generic journey frequency metric.
     logger.debug("Aggregating de-looped journey occurrences...")
+    if 'Page_Seq_Occurrences' not in user_journey_df.columns:
+        user_journey_df['Page_Seq_Occurrences'] = user_journey_df.groupby('PageSequence')['Occurrences'].transform(
+            'sum')
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Page_Seq_Occurrences'].transform('sum')
     logger.debug("De-looped page sequence to list...")
     user_journey_df['Page_List_NL'] = user_journey_df['Page_Seq_NL'].map(
@@ -529,7 +528,7 @@ if __name__ == "__main__":
                     "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
                 os.mkdir(dest_directory)
 
-            initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
+            # initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
         else:
             logging.info(
                 "Specified source directory \"{}\" contains no target files.".format(source_directory))
@@ -540,4 +539,3 @@ if __name__ == "__main__":
     # list2 = [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)]
     # print(list2)
     # print(aggregate_dict(list2))
-
