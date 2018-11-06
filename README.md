@@ -223,6 +223,19 @@ Open the local host `http://localhost:7474/browser/` in your browser after the i
 running locally. There's a prompt where you can enter Cypher commands (the Neo4j language). Run the following code 
 to load in your data, adjusting for filename differences and different header names.  
 
+#### Clear any nodes or edges
+
+Ensure a clean graph database by clearing any old nodes or edges stored.  
+
+```bash
+
+MATCH (n)
+DETACH DELETE n
+
+```
+
+We can now be confident loading our data in.  
+
 #### Nodes
 
 Here our csv has the header "url".  
@@ -246,7 +259,7 @@ CREATE INDEX ON :Page(url);
 
 #### Edges
 
-Here our csv for edges has the headers; "source", "destination" (both page urls) and "weights" (occurrences). This will 
+Here our csv for edges has the headers; "source", "destination" (both page urls) and "weight" (occurrences). This will 
 take a few seconds to run for one days data.
 
 ```bash
@@ -255,7 +268,7 @@ USING PERIODIC COMMIT
 LOAD CSV WITH HEADERS FROM "file:///test_edges.csv" AS row
 MATCH (source:Page {url: row.source})
 MATCH (destination:Page {url: row.destination})
-MERGE (source)-[:LINKS_TO]->(destination);
+MERGE (source)-[:MOVES_TO {occurrences:row.weight}]->(destination);
 
 ```
 
@@ -276,7 +289,26 @@ This should look like a bunch of nodes and edges with direction. You can add wei
 Page metadata type if so inclined.  
 
 There's plenty of software available to manage this type of data, don't feel constrained to use Neo4j
- (although this is a good graph database if storing lots and running nuanced queries).  
+ 
+### Nuanced queries
+
+Neo4j is very fast. You can run nuanced queries quickly. For example:   
+
+```
+
+MATCH (n)
+WHERE n.url STARTS WITH '/government/organisations/department-for-education'
+RETURN n
+LIMIT 500;
+
+```
+
+Consult the (Neo4j)[https://neo4j.com/docs/developer-manual/current/cypher/clauses/] manual for further guidance.
+
+### Visualising the network
+
+People like visualisations, use Gephi or any of the plenty of suitable tools for doing this.  
+
 
 # Developing
 
