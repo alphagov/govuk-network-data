@@ -169,6 +169,12 @@ def add_loop_columns(user_journey_df):
     # In order to groupby during analysis step
     logger.debug("De-looped lists to string...")
     user_journey_df['Page_Seq_NL'] = user_journey_df['Page_List_NL'].map(lambda x: ">>".join(x))
+
+    if 'Page_Seq_Occurrences' not in user_journey_df.columns:
+        logger.debug("Setting up Page_Seq_Occurrences...")
+        user_journey_df['Page_Seq_Occurrences'] = user_journey_df.groupby('PageSequence')['Occurrences'].transform(
+            'sum')
+
     # Count occurrences of de-looped journeys, most generic journey frequency metric.
     logger.debug("Aggregating de-looped journey occurrences...")
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Page_Seq_Occurrences'].transform('sum')
