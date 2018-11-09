@@ -114,6 +114,10 @@ def extract_pe_components(page_event_list, i):
     return hit_list
 
 
+def taxon_string_to_list(taxon_string):
+    return tuple(taxon_string.split(","))
+
+
 def extract_cd_components(page_event_list, i):
     """
     TODO: probably add functionality as a condition to extract_pe_components
