@@ -1,0 +1,659 @@
+---
+title: "eda_user_journeys_no_drops"
+author: "Matthew Gregory"
+date: "06/11/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## EDA no journeys dropped
+
+Data from **one day**, the 31 Oct 2018.  
+
+Using `prelim_meta_standard_query_with_pageseq` sql query.  
+
+During the `make_dataset` step we did not drop any page sequences (kept the rare ones, one occurrence in a day; also kept journeys of just one page).  
+
+## Computing environment
+
+Check the session info at the end or you could run in Docker. Try the following command to ensure a computing environment that will do the job. This will open a RStudio instance on your browser. Go to your local host 8787. You can log in by typing "rstudio" for username and by typing in the password that you specify when you initiate the container, as below.     
+
+```{r eval = FALSE}
+docker run -e PASSWORD=i<3hadley -p 8787:8787 rocker/tidyverse:3.5.0
+```
+
+
+## Data pipeline version
+
+Queried and preprocessed using commit 2f83eef.  
+
+## Read in the data
+
+If you're using rocker/tidyverse then upload the data into your working directory, using the button in the GUI is straightforward. You can then proceed. If doing it locally, we assume the data is in the working directory you are working from.  
+
+```{r message=FALSE}
+library(tidyverse)
+library(ggthemes)
+
+```
+
+```{r}
+# might take a while, you should get progress bar after a min
+# could use fread from data.table if you need faster option
+df <- read_csv("processed_2018-10-31-prelim_meta_standard_query_with_pageseq_no_dropping.csv.gz",
+                           col_names = TRUE)
+```
+
+Peek at the data.
+
+```{r}
+head(df)
+```
+
+Ah, of course, it's output for python and pandas. We'd need a column tibble for the dictionaries, like `DeviceCategories`. We should stay in python if interested in those variables. However, we can explore some of the other aspects, such as what typical journeys and ignore the meta data for now.  
+
+```{r}
+tail(df)
+```
+
+Glimpse the variables types. Data types look correct.  
+
+```{r}
+glimpse(df)
+```
+
+For the documentation on these variables see the [README](https://github.com/ukgovdatascience/govuk-network-data) for our data pipeline package.  
+
+## Missing data
+
+```{r}
+extracat::visna(df, sort = "b")
+
+```
+
+A small number of rows are missing `PageSequence` and `Page_List`. This suggests that there is a problem in the data pipeline in getting `PageSequence` for these rows. Let's inspect the sequence to see if we can spot anything odd. Of course the issue could be having been read into R, and not with the pipeline.  
+
+It also could be things inherently wonky, such as a Sequence that is all events, or is recorded as such. It could be things like banner shown, click a link that fires an event (not page hit) and then exit. Also could be due to set up, as some page hits are captured as events internally.  
+
+```{r}
+sum(!complete.cases(df)) / nrow(df)
+```
+
+Less than one percent are missing.
+
+```{r}
+# filter for missingness
+dodgy <- df[!complete.cases(df), ]
+
+```
+
+```{r}
+select(dodgy, Sequence, PageSequence, Page_Seq_Occurrences)
+```
+
+```{r}
+# free up some space
+rm(dodgy)
+```
+
+Let's drop rows with missing `PageSequence` data. They look to be Sequences without Page hits, jsut events.  
+
+```{r}
+df <- df %>%
+  drop_na()
+
+# should equal zero
+# sum(!complete.cases(df))
+```
+
+
+## A weekday's data
+
+```{r}
+dim(df)
+```
+
+The data gets quite big when we don't drop unique journeys, hence we only use one day, a Wednesday. Might be better to this for a few days then sample, however at the moment our pipeline might struggle (i.e. if running on our local machines unless we pay for extra compute).  
+## What's a typical journey?
+
+## The data story
+
+Big query provides us with a generated `Sequence` of events & page hits. We use our data pipeline package we built to process the data into a useful form for typical GOV.UK project team needs.   
+
+```{r}
+head(df$Sequence, 2)
+
+```
+
+Given this captures event information, behaviour of the user in how they are interacting with the page (in a pre-defined way), understandably you might expect these journeys to be nuanced and more likely to be unique (i.e. I went to this page then download link clicked here, then back, then clicked there, then clicked on the survey at the footer).  
+
+Above we see two journeys, the first where a specific page is hit, then the journey (ergo the session) ends. The second user journey shows a more nuanced journey including behaviour of the user on the pages they visit (events).  
+
+FYI: (The `PAGE<:<NULL<:<NULL` event means a page hit).  
+
+We drop the events and seperate the different pages with `>>` to create the `PageSequence` that was travelled at least once by a user in one session (during this particular day, given our data; this is directly queried from BigQuery rather than transforming `Sequence`). As this is just on one day, we might be biasing our interpretation, as we will likely see more unique journeys, than if used data over a longer time period.    
+
+```{r}
+head(df$Page_Seq_Occurrences, 2)
+
+```
+
+This seems to be more in-line with what colleagues around GOV.UK would consider a user journey. A sequences of pages that they visit. They would consider someone visiting A >> B, equivalent to someone who goes A >> downloads something >> B. Although this is debatable, we assume this is the case at least at the macro level, where we are trying to work out what type of journeys users are taking (are they simple one or two pages, or are they nuanced and complicated with loops and backtracking? etc.).  
+
+`Occurrences` counts the number of times (sessions) the Sequence was identified. Given the above paragraph, we are arguably more interested in `Page_Seq_Occurrences` which gives the number of times (sessions) the PageSequence was identified.  
+
+We should caveat this with As the data I’m looking at is for one day only (as I’m not dropping one-offs), we might be biasing our estimate of how common unique journeys are. With more sampling effort (using more days data) a unqiue page sequence might appear again, rendering it no longer a “one-off”.
+
+Reminds me of a [species accumulation curve](https://www.researchgate.net/figure/Species-accumulation-curve-based-on-sampling-effort-outlined-in-Table1_fig2_230591046). Where the x axis could be the number of days sampled and the y the number of unique PageSequences. This is why we typically use a 3-4 day roll-up period in our `make_dataset.py`.  
+
+## What the distribution of the occurences of user journeys by page sequence length?
+
+So within a given day, most journeys are happening just once, they are unique. As the experimental unit is at the `Sequence` level, we should be weary of just counting these. Instead we should look at how many unique Page Sequences there are.  
+
+```{r}
+length(unique(df$PageSequence))
+
+```
+
+## Group the data so that `Page_Sequence` is the experimental unit
+
+We need to aggregate the number of `Page_Seq_Occurrences` for each unique `Page_Sequence`. This will give us an indication of how frequently these journeys are happening in a day. Then we can see what the typical journey is, by investigating these `Page_Sequences`.  
+
+```{r}
+# make it smaller, more manageable for testing
+# replace with all data, after test
+set.seed(1337)
+df_small <- sample_frac(df, size = 0.3)
+
+```
+
+The data can be considered already melted, we can then easily compute margins, ignoring the `Sequence` nuance. 
+
+Should we sum using `Occurrences` or `Page_Seq_Occurrences`?  
+```{r}
+filter(df, PageSequence == "/check-mot-history") %>%
+  select(PageSequence, Occurrences, Page_Seq_Occurrences)
+```
+
+The sum has already been done for us it seems, so `Page_Seq_Occurrences` captures how many sessions involved that `PageSequence` in the timeframe. However, as we've dropped some rows for missingness, let's recalculate this.  
+
+```{r}
+pageseq_sum <- df %>%
+  group_by(PageSequence) %>%
+  # integer overflow, if not as.numeric first
+  summarise( journey_occurrences = sum(as.numeric(Occurrences)))
+
+pageseq_sum
+```
+
+As you can see, there will be plenty of unique journeys that are junk typed in after the "www.gov.uk". Caveating that, even the weird ones can occur more than once, for example:  
+
+```{r}
+pageseq_sum[1337, ]$PageSequence
+```
+
+## Frequency distribution of unique user journey PageSequence
+
+```{r}
+pageseq_sum %>%
+arrange(desc(journey_occurrences))
+```
+
+We sense checked these numbers against GA data, at least the ordering of popular pages by page views (page views were approx double the session number which is plausible).  
+
+Or getting just the strings.  
+
+```{r}
+pageseq_sum %>%
+arrange(desc(journey_occurrences)) %>%
+  # override tibble printing 
+  #.$PageSequence %>%
+  head(10)
+```
+As a plot and proportions of total occurences of PageSequences. We save as object p so we can add a figure legend.    
+
+```{r}
+pageseq_sum %>%
+arrange(desc(journey_occurrences)) %>%
+  # get the top 10
+  head(10) %>%
+  # as a prop of total journey occurrences
+  mutate(., journey_occurrences_prop = journey_occurrences / sum(pageseq_sum$journey_occurrences)) %>%
+  # order by magnitude
+  ggplot(., aes(x = reorder(PageSequence, journey_occurrences_prop),
+                y = journey_occurrences_prop*100)) +
+  geom_bar(stat="identity") +
+  # make label readable
+  scale_x_discrete(labels = function(x)
+    stringr::str_wrap(x, width = 40)) +
+  ylab("% of occurrences") + xlab("PageSequence") +
+  coord_flip() +
+  theme_tufte() +
+  # change label font size
+    theme(axis.text=element_text(size=8)) -> p
+```
+
+Combined these top ten make up the prop of the total PageSeqeunce occurences to giv eour legend info.
+
+```{r}
+n <- 10
+
+top_n <- pageseq_sum %>%
+arrange(desc(journey_occurrences)) %>%
+  # get the top n
+  head(n) %>%
+  # as a prop of total journey occurrences
+  mutate(., journey_occurrences_prop = journey_occurrences / sum(pageseq_sum$journey_occurrences)) 
+
+other <- pageseq_sum %>%
+arrange(desc(journey_occurrences)) %>%
+  # get all but the top 10
+  tail(-n) %>%
+  # as a prop of total journey occurrences
+  mutate(., journey_occurrences_prop = journey_occurrences / sum(pageseq_sum$journey_occurrences))
+
+```
+
+```{r}
+# compare top 10, prop with everyother PageSequence
+leg <- paste ("The top", n, "make up",
+       round(sum(top_n$journey_occurrences_prop*100), 0),
+       "% of the total PageSequence Occurrences.",
+       "\n",
+       "The other", nrow(pageseq_sum) - n, " PageSequence journeys",
+       " make up the remaing",
+       round(sum(other$journey_occurrences_prop*100), 0),
+"%") 
+
+```
+Finally the plot.  
+
+```{r}
+
+p + 
+  ggtitle(leg) +
+  theme(plot.title = element_text(size=6))
+```
+
+### Is there such a thing as a common journey?
+
+These PageSequences only make up 17% of journeys. Not that impressive, let's look at the top 100, albeit losing the labels, and compare to the "other" journeys.  
+
+```{r}
+
+top_journier <- function(n = 10) {
+  # needs pageseq_sum to get total occurrences, for prop
+  # calc props for top n
+  # for the tail pages, aggregate as "all_other_journeys"
+  # plot without labels
+
+  
+  # top_n is a dplyr funciton
+  the_top_n <- pageseq_sum %>%
+arrange(desc(journey_occurrences)) %>%
+  # get the top n
+  head(n) %>%
+  # as a prop of total journey occurrences
+  mutate(., journey_occurrences_prop = journey_occurrences / sum(pageseq_sum$journey_occurrences)) 
+
+other <- pageseq_sum %>%
+arrange(desc(journey_occurrences)) %>%
+  # get all but the top 10
+  tail(-n) %>%
+  # as a prop of total journey occurrences
+  mutate(., journey_occurrences_prop = journey_occurrences / sum(pageseq_sum$journey_occurrences))
+
+# create aggregate other category, for those not in top_n
+# or could do 1 - top_n, but this is good sense check
+
+other_agg <- sum(other$journey_occurrences_prop)
+
+other_row <- tibble(PageSequence = "Others",
+                       journey_occurrences_prop = other_agg)
+
+# rbind other_row to top_n, for input into ggplot
+bind_rows(the_top_n, other_row) %>%
+  mutate(the_tail = if_else(
+    # sum(df$PageSequence == "Others") = 0, safe label
+    PageSequence == "Others",
+    true = "All others PageSequenes combined",
+    false = paste("In the top", n, "PageSequences")),
+      # make percentages rather than prop
+    journey_occurrences_prop = (journey_occurrences_prop*100)
+    ) %>%
+  # dataframe for plotting
+ggplot(., aes(x = reorder(PageSequence, journey_occurrences_prop),
+                y = journey_occurrences_prop, fill = the_tail)) +
+  geom_bar(stat="identity") +
+  # make pretty
+  coord_flip() +
+  theme_tufte() +
+   theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        # remove legend as is nonsense name
+        legend.title = element_blank(),
+        # change label size
+        axis.title=element_text(size = 8)) +
+  ylab("Journey Occurences as percentage of total")-> p
+
+return(p)
+}
+
+```
+
+Let's try it out for top 100 journeys.
+
+```{r}
+top_journier(100)
+```
+
+```{r}
+top_journier(10)
+
+```
+
+However, we should be careful, lots of the tail contains these weird junk one-pager journeys. Can we drop the junk and then repeat the above analysis?
+
+```{r}
+pageseq_sum %>%
+arrange(journey_occurrences)
+```
+
+```{r}
+hist(pageseq_sum$journey_occurrences)
+```
+
+Or as a bin-frequency table: 
+
+```{r}
+br <- seq(0, 165000, by = 1000)
+total_occurrences <- sum(pageseq_sum$journey_occurrences)
+
+ranges <- paste(head(br,-1), br[-1], sep=" - ")
+# hist is efficient at binning
+freq <- hist(pageseq_sum$journey_occurrences,
+              breaks = br, include.lowest = TRUE,
+              plot = FALSE)
+
+# for printing
+x_bin <- data_frame(range = ranges, frequency = freq$counts) %>%
+  mutate(prop = frequency / sum(frequency))
+
+head(x_bin)
+
+tail(x_bin)
+
+```
+
+Let's plot this.
+
+```{r}
+plot(x_bin$prop, type = "l")
+
+# tidy up
+rm(br, ranges, freq, x_bin)
+```
+
+
+Most journeys are rare, although let's zoom in a bit to clarify.  
+
+```{r}
+ggplot(pageseq_sum, aes(x = journey_occurrences)) +
+  geom_histogram(bins = 30) + scale_x_log10() +
+  ggthemes::theme_tufte() +
+  xlab("Journey Occurrences") + ylab("Count")
+
+```
+
+It seems the most common types of journeys occur fewer than ten times. This can be considered as, if you were to pick a random user session, the chances are it would be a "one-off" `PageSequence`. Looking at these `PageSequences` that are rare (< 10).  
+
+```{r}
+pageseq_sum %>%
+  filter(journey_occurrences <= 10) %>%
+  ggplot(aes(x=journey_occurrences)) + 
+  geom_density(stat = "density", adjust = 2) +
+  scale_y_continuous(breaks=c(1,3,7,10)) +
+  ggthemes::theme_tufte() +
+  xlab("Journey Occurrences") + ylab("Density")
+```
+
+## Investigate these one-offs
+
+What proportion of our PageSequence journeys are one-offs?
+
+```{r}
+one_offs <- pageseq_sum %>%
+  filter(journey_occurrences == 1) %>%
+  nrow()
+
+# total rows minues one offs
+not_one_offs <- nrow(pageseq_sum) - one_offs
+
+# % one_offs
+round((one_offs/nrow(pageseq_sum))*100, 0)
+
+# % not
+round((not_one_offs/nrow(pageseq_sum))*100, 0)
+
+
+df_one_offs <- tibble(
+  ps_type = c("one-off", "not-one-off"),
+  percentage = c(round((one_offs/nrow(pageseq_sum))*100, 0),
+                 round((not_one_offs/nrow(pageseq_sum))*100, 0))
+)
+```
+
+```{r}
+ggplot(df_one_offs,
+       aes(x = ps_type, y = percentage)) +
+  geom_bar(stat = "identity") +
+  ggthemes::theme_tufte() +
+  xlab("PageSequence occurence type") + ylab("Percentage")
+```
+
+
+## Of the rare journeys, what proportion are one-offs?
+
+If we define a rare journey as one that occurrs fewer than ten times in a day.
+
+
+```{r}
+pageseq_sum %>%
+  # inspect the "Rare" less than ten journies
+  filter(journey_occurrences <= 10) %>%
+with(., table(journey_occurrences)) %>%
+  prop.table()
+```
+
+# Trying to drop junk
+
+Let's remove any PageSequences that start with "/ ". This space suggests they've typed straight into the url bar, and if it's only occured once then it's probably a typo.  
+
+```{r}
+#R needs to backslash the backslash, hence double
+junk <- pageseq_sum %>%
+  filter(str_detect(PageSequence, "^\\/\\s"))
+
+nrow(junk)
+junk
+```
+
+There's not acutally that many of these, it's jsut that alphabetical order made me think they were more common! Only 46. We should probably drop them though.  
+
+```{r}
+no_junk <- pageseq_sum %>%
+  filter(!str_detect(PageSequence, "^\\/\\s"))
+```
+
+There's still alot of one-offs. How can we inspect them to make sense of them?
+
+```{r}
+no_junk
+```
+
+Do pages start with hyphens? Probably not right?
+
+```{r}
+# hyphen not special
+no_junk <- no_junk %>%
+  filter(!str_detect(PageSequence, "^\\/-"))
+
+no_junk
+```
+More junk, commas and colons can probaly be removed? Not sure about question marks...
+
+```{r}
+no_junk <- 
+  no_junk %>%
+  # drop colons
+  filter(!str_detect(PageSequence, "^\\/\\:")) %>%
+  # drop 1k ? markers, seem to be when event is clicked on main page
+  filter(!str_detect(PageSequence, "^\\/\\?"))
+  
+
+no_junk
+```
+
+Let's be bold and assume it starts with a character or digit, anything else is junk.  
+
+```{r}
+no_junk <- 
+  no_junk %>%
+  filter(str_detect(PageSequence, "^\\/[a-z A-Z 0-9]"))
+
+no_junk
+
+
+```
+
+Looks to be some legit that start with numbers.
+
+```{r}
+no_junk_one_offs <- no_junk %>%
+  filter(journey_occurrences == 1)
+
+# View(no_junk_one_offs)
+```
+
+Inspecting the data with the viewer
+
+Scanning through these one-offs they appear genuine
+One-offs tend to be either niche, long or journeys that involve search.  
+
+## Length of one-offs
+
+```{r}
+
+```
+
+
+## User journey length and frequency distribution
+
+The length of a journey will be page urls seperated by ">>" we add one, to give a one-page session a length of one.  
+
+```{r}
+
+pageseq_sum <- pageseq_sum %>%
+  mutate(journey_length = str_count(PageSequence, ">>") + 1)
+
+pageseq_sum
+```
+
+```{r}
+summary(pageseq_sum$journey_length)
+
+# Tukey's 5 (minimum, lower-hinge, median, upper-hinge, maximum)
+boxplot(pageseq_sum$journey_length)
+```
+
+
+```{r}
+pageseq_sum %>%
+  ggplot(aes(x=journey_length)) + 
+  geom_density() +
+  ggthemes::theme_tufte() +
+  xlab("Journey Length") + ylab("Density")
+```
+
+And if you want some numbers to quote:
+
+```{r}
+br <- seq(0, 500, by = 50)
+total_occurrences <- sum(pageseq_sum$journey_length)
+
+ranges <- paste(head(br,-1), br[-1], sep=" - ")
+# hist is efficient at binning
+freq <- hist(pageseq_sum$journey_length,
+              breaks = br, include.lowest = TRUE,
+              plot = FALSE)
+
+# for printing
+x_bin <- data_frame(range = ranges, frequency = freq$counts) %>%
+  mutate(prop = frequency / sum(frequency))
+
+x_bin
+
+rm(br, ranges, freq)
+```
+
+Journies less than fifty pages make up almost all journeys.  
+
+```{r}
+pageseq_sum %>%
+  # filter rows for journeys less than 50 transitions
+  filter(journey_length <= 50) %>%
+  ggplot(aes(x=journey_length)) + 
+  # Adjust the multiplicate bandwidth adjustment; smooth it
+  # as discrete
+  geom_density(stat = "density", adjust = 3) +
+  ggthemes::theme_tufte() +
+  xlab("Journey Length") + ylab("Density")
+```
+
+
+## The distribution of journey length and occurrences of a PageSequence
+
+Thus far we've only considered the distributions of these variables. We are more interested in the volume of sessions that are found and how they are distributed amongst these different length journeys. Thus we ask where are most `Occurrences` distributed amongst user journey `PageSequences` of differing lengths?  
+
+A 2d density plot is useful to study the relationship between 2 numeric variables if you have a huge number of points. To avoid overlapping (as in the scatterplot beside), it divides the plot area in a multitude of small fragment and represents the number of points in this fragment.
+
+
+## The characteristics of one-off journeys
+
+There's some "junk" that occurrs only once and has a journey length of one. Before dismissing this entirely,can we explore these to better understand or characterise these types of journeys that users have?  
+
+```{r}
+
+```
+
+
+## What happens to the user sessions that only contain `/` or "www.gov.uk/" in their `PageSequence`?
+
+
+
+## Do a few journeys, say ten or so, make up the bulk of GOV.UK journeys?
+
+```{r}
+
+```
+
+## Comparing Occurences and Pag_Seq_Occurrences sums for FK
+
+> page_seqs are essentially filtered down sequences, so page_seq are bound to have more occurrences - FK
+
+```{r}
+sum(df$Occurrences)
+
+sum(df$Page_Seq_Occurrences)
+```
+
+## Session info
+
+```{r}
+devtools::session_info()
+```
+
