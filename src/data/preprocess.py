@@ -127,6 +127,19 @@ def extract_cd_components(page_event_list, i):
     return [page_event_cd[i] for page_event_cd in page_event_list]
 
 
+def extract_page_cd_components(page_event_list, i):
+    """
+    TODO: probably add functionality as a condition to extract_pe_components
+    Extract cd_list from page_event_cd_list
+    :param page_event_list: list of (page,event) tuples
+    :param i: 0 for page_list 1, for event_list
+    :return: appropriate hit_list
+    """
+    # page_event_cd is a tuple
+    # For initial taxon implementation
+    return [(page_event_cd[0], page_event_cd[i]) for page_event_cd in page_event_list]
+
+
 def collapse_loop(page_list):
     """
     Remove A>>A>>B page loops from page_list. Saved as new dataframe column.
