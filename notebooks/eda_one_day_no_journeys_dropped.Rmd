@@ -544,39 +544,84 @@ Inspecting the data with the viewer
 Scanning through these one-offs they appear genuine
 One-offs tend to be either niche, long or journeys that involve search.  
 
-## Length of one-offs
+
+Even after removing the junk, the majority of journeys are one-offs.
 
 ```{r}
+  one_offs <- no_junk_one_offs %>%
+  nrow()
 
+# total rows minues one offs
+not_one_offs <- nrow(no_junk) - one_offs
+
+
+df_one_offs_no_junk <- tibble(
+  ps_type = c("one-off", "not-one-off"),
+  percentage = c(round((one_offs/nrow(no_junk))*100, 0),
+                 round((not_one_offs/nrow(no_junk))*100, 0))
+)
+
+ggplot(df_one_offs_no_junk,
+       aes(x = ps_type, y = percentage)) +
+  geom_bar(stat = "identity") +
+  ggthemes::theme_tufte() +
+  xlab("PageSequence occurence type") + ylab("Percentage") +
+  ggtitle("Junk removed", subtitle = "'one-off' journeys still dominate")
 ```
 
+So the one-offs have lost a percentage point after removal of the junk. So junk was contributing the one-offs but there wasn't very much of it relatively. It's has negligible impact on our understanding of the most common journeys.  
 
-## User journey length and frequency distribution
+A common journey type is a misconception. Sure there are some common journeys that draw our attention, but actually most journeys are one-offs, rare or unique over a day.  
+
+As a reminder, here's a selection of some of those journeys.  
+
+```{r}
+set.seed(255)
+
+sample_n(no_junk_one_offs, 20) %>%
+  select(PageSequence) 
+```
+
+GOV.UK tends to focus on what we view the main bits of the site that interact with most users. Although these pages do have a lot of page views and other GA metrics, this work suggests that they are the less typical kind of user. About 80% of users in a day have an unshared experiene of GOV.UK, they make a unique or one-off journey.  
+
+This suggests our users experience is more nuanced than we may be giving credit for.
+
+For example, the journey "/personal-tax->>/>>/", the user went to personal-tax then back to the gov.uk page, then left. This only happened once in that day.
+
+## Length of one-offs vs not-one-offs
 
 The length of a journey will be page urls seperated by ">>" we add one, to give a one-page session a length of one.  
 
 ```{r}
+# mostly work with this
+no_junk <- no_junk %>%
+  mutate(journey_length = str_count(PageSequence, ">>") + 1) %>%
+  # create a new variable for one-off or not
+  mutate(pageseq_type = as_factor(
+    if_else(journey_occurrences == 1,
+            true = "one-off",
+            false = "not-one-off")
+    )
+         )
 
-pageseq_sum <- pageseq_sum %>%
-  mutate(journey_length = str_count(PageSequence, ">>") + 1)
-
-pageseq_sum
 ```
 
-```{r}
-summary(pageseq_sum$journey_length)
+standard plotting
 
-# Tukey's 5 (minimum, lower-hinge, median, upper-hinge, maximum)
-boxplot(pageseq_sum$journey_length)
+```{r}
+summary(filter(no_junk, pageseq_type == "not-one-off")$journey_length)
+
+summary(filter(no_junk, pageseq_type == "one-off")$journey_length)
 ```
 
+Tails are really long, can only see outliers...
 
 ```{r}
-pageseq_sum %>%
-  ggplot(aes(x=journey_length)) + 
-  geom_density() +
-  ggthemes::theme_tufte() +
-  xlab("Journey Length") + ylab("Density")
+# p <- ggplot(data = no_junk,
+#             aes(x = journey_length, y = pageseq_type)) + 
+#   geom_violin() + xlim(0, 500)
+# 
+# p + theme_tufte()
 ```
 
 And if you want some numbers to quote:
@@ -603,7 +648,7 @@ rm(br, ranges, freq)
 Journies less than fifty pages make up almost all journeys.  
 
 ```{r}
-pageseq_sum %>%
+no_junk %>%
   # filter rows for journeys less than 50 transitions
   filter(journey_length <= 50) %>%
   ggplot(aes(x=journey_length)) + 
@@ -621,35 +666,202 @@ Thus far we've only considered the distributions of these variables. We are more
 
 A 2d density plot is useful to study the relationship between 2 numeric variables if you have a huge number of points. To avoid overlapping (as in the scatterplot beside), it divides the plot area in a multitude of small fragment and represents the number of points in this fragment.
 
+```{r}
+ggplot(no_junk, aes(x = journey_length, y=journey_occurrences) ) +
+  geom_hex() +
+  theme_bw()
+ 
+```
 
-## The characteristics of one-off journeys
-
-There's some "junk" that occurrs only once and has a journey length of one. Before dismissing this entirely,can we explore these to better understand or characterise these types of journeys that users have?  
+The popular or well-visited PageSequences draw our attention from lower the y-axis, where the action is at. Let's find an appropriate scale.
 
 ```{r}
+ggplot(no_junk, aes(x = journey_length, y = journey_occurrences) ) +
+  geom_bin2d(bins = 50) + #ylim(0, 1000) +
+  theme_bw() +
+  scale_y_continuous(trans = "log10") +
+  # breaks to read log scale
+  scale_x_continuous(trans = "log10", breaks = c(1, 10, 100, 500),
+                     minor_breaks = c(1:10, seq(20, 100, 10))
+                     ) +
+  xlab("Journey Length") + ylab("PageSeq Occurences")
+```
+
+```{r}
+set.seed(128921)
+# Add 2d density estimation
+sp <- ggplot(sample_n(no_junk, size = 10000),
+             aes(x = journey_length, y = journey_occurrences) ) +
+  geom_point(color = "lightgray", alpha = 0.05,
+             position = position_jitter(w = 0.1, h = 0.1))
+  
+sp + theme_bw() +
+  scale_y_continuous(trans = "log10") +
+  # breaks to read log scale
+  scale_x_continuous(trans = "log10", breaks = c(1, 10, 100, 500),
+                     minor_breaks = c(1:10, seq(20, 100, 10))
+                     ) +
+  xlab("Journey Length") + ylab("PageSeq Occurences")
+```
+
+
+Try a distirbution map with raster, these error.
+
+Try datashader, probably get better results.
+
+### Drop One-offs
+
+Let's drop the one-offs, so we can learn about PageSeq with high session volume. Lots pf occurrences.
+
+```{r}
+# x defined in useful_df_maker also
+no_junk_no_one_offs <- no_junk %>%
+  filter(journey_occurrences > 1)
+
+ggplot(no_junk_no_one_offs, aes(x = journey_length, y = journey_occurrences) ) +
+  geom_bin2d(bins = 50) + #ylim(0, 1000) +
+  theme_bw() +
+  scale_y_continuous(trans = "log10") +
+  # breaks to read log scale
+  scale_x_continuous(trans = "log10", breaks = c(1, 10, 100, 500),
+                     minor_breaks = c(1:10, seq(20, 100, 10))
+                     ) +
+  xlab("Journey Length") + ylab("PageSeq Occurences") + ggtitle("no-one-offs")
+```
+
+```{r}
+set.seed(128921)
+# Add 2d density estimation
+sp <- ggplot(sample_n(no_junk_no_one_offs, size = 10000),
+             aes(x = journey_length, y = journey_occurrences) ) +
+  geom_point(color = "lightgray", alpha = 0.01,
+             position = position_jitter(w = 0.1, h = 0))
+  
+sp + theme_bw() +
+  scale_y_continuous(trans = "log10", breaks = c(1, 10, 100, 1e03, 1e04, 1e05)) +
+  # breaks to read log scale
+  scale_x_continuous(trans = "log10", breaks = c(1, 10, 100, 500),
+                     minor_breaks = c(1:10, seq(20, 100, 10))
+                     ) +
+  xlab("Journey Length") + ylab("PageSeq Occurences") +
+  ggtitle("no-one-offs")
+```
+
+## Aggregate occurences across journey_length
+
+```{r}
+# Using cut
+no_junk_jl_factor <- no_junk %>%
+  mutate(journey_length_type = cut(journey_length,
+      breaks = c(1:11,  101, 500, Inf),
+      labels = c(as.character(1:10), "11<=x<100", "101<=x<500", "x>=500"),
+      right = FALSE))
+
 
 ```
 
+Barplot it. Needs sense check. Passed.
+
+```{r}
+
+# with  group, in parantheses returns it
+(no_junk_jl_factor %>% 
+  group_by(journey_length_type) %>% 
+  summarise_at(c("journey_occurrences"), sum) -> occurrences_by_length)
+```
+
+```{r}
+p <- ggplot(occurrences_by_length, aes(journey_length_type, journey_occurrences)) +
+  theme_tufte()
+
+# plot with standard form
+p + geom_bar(stat = "identity") + theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences") + 
+  scale_y_continuous(labels = function(x) format(x, scientific = TRUE))
+```
+
+Self explanatory. What about as a proportion of the total?
+
+```{r}
+# as proportion of total
+occurrences_by_length <- occurrences_by_length %>%
+  mutate(journey_occurrences_prop = journey_occurrences/sum(occurrences_by_length$journey_occurrences))
+
+occurrences_by_length
+```
+
+```{r}
+# *100 to make %
+p <- ggplot(occurrences_by_length, aes(journey_length_type, journey_occurrences_prop*100)) +
+  theme_tufte()
+
+# plot with standard form
+p + geom_bar(stat = "identity") + theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences (%)")
+
+```
+
+These 500 journeys are curious, to look at them use:
+`filter(no_junk, journey_length == 500) %>% View()` in the console.
+
+## Aggregate occurences across journey_length
+
+But what proportion of these journey length occurences are one-offs?
+
+```{r}
+# with  group, in parantheses returns it
+(no_junk_jl_factor %>% 
+  group_by(journey_length_type, pageseq_type) %>% 
+  summarise_at(c("journey_occurrences"), sum) -> occurrences_by_length_w_oneoff_status)
+
+occurrences_by_length_w_oneoff_status <- occurrences_by_length_w_oneoff_status %>%
+  mutate(journey_occurrences_prop = journey_occurrences/sum(occurrences_by_length_w_oneoff_status$journey_occurrences))
+```
+
+
+```{r}
+# *100 to make %
+p <- ggplot(occurrences_by_length_w_oneoff_status,
+            aes(journey_length_type, journey_occurrences_prop*100)) +
+  theme_tufte()
+
+# dodge bars, rather than stack, i prefer
+p + 
+  geom_bar(stat = "identity",
+           aes(fill = pageseq_type),
+           position = "dodge") +
+  theme(axis.text.x=element_text(angle = 90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences (%)")
+
+```
+
+In one day, as you get to journey lengths or PageSequences of greater than 3, they are "special" enough to be unique, with no other sessions following that route in the same day. Accordingly over lengths of 4 the contribution of occurences of these "one-offs" start to be important, despite by definition, there only being one occurence of them.
+
+```{r}
+#What prop do one-offs and not make up?
+summarise_at(occurrences_by_length_w_oneoff_status, .vars = "journey_occurrences_prop", .funs = sum)
+```
+
+Or the above as numbers
+
+```{r}
+# *100 to make %
+p <- ggplot(occurrences_by_length_w_oneoff_status,
+            aes(journey_length_type, journey_occurrences)) +
+  theme_tufte()
+
+# dodge bars, rather than stack, i prefer
+p + 
+  geom_bar(stat = "identity",
+           aes(fill = pageseq_type),
+           position = "dodge") +
+  theme(axis.text.x=element_text(angle = 90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences (%)")  + 
+  scale_y_continuous(labels = function(x) format(x, scientific = TRUE))
+
+```
 
 ## What happens to the user sessions that only contain `/` or "www.gov.uk/" in their `PageSequence`?
-
-
-
-## Do a few journeys, say ten or so, make up the bulk of GOV.UK journeys?
-
-```{r}
-
-```
-
-## Comparing Occurences and Pag_Seq_Occurrences sums for FK
-
-> page_seqs are essentially filtered down sequences, so page_seq are bound to have more occurrences - FK
-
-```{r}
-sum(df$Occurrences)
-
-sum(df$Page_Seq_Occurrences)
-```
 
 ## Session info
 
