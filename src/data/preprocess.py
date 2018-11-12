@@ -1,4 +1,5 @@
 import re
+
 import numpy as np
 
 
@@ -114,8 +115,16 @@ def extract_pe_components(page_event_list, i):
     return hit_list
 
 
-def taxon_string_to_list(taxon_string):
-    return tuple(taxon_string.split(","))
+def extract_pcd_list(page_event_list, cd_index):
+    pcd_list = []
+    for page_event in page_event_list:
+        if page_event[1] == "PAGE<:<NULL<:<NULL":
+            pcd_list.append((page_event[0], page_event[cd_index].split(",")))
+    return pcd_list
+
+
+def nest_taxon_list(taxon_list):
+    return [tuple(taxon.split(",")) for taxon in taxon_list]
 
 
 def extract_cd_components(page_event_list, i):
@@ -128,7 +137,7 @@ def extract_cd_components(page_event_list, i):
     """
     # page_event_cd is a tuple
     # For initial taxon implementation
-    return [page_event_cd[i] for page_event_cd in page_event_list]
+    return [page_event_cd[i] for page_event_cd in page_event_list if page_event_cd[1] == "PAGE<:<NULL<:<NULL"]
 
 
 def extract_page_cd_components(page_event_list, i):
