@@ -797,7 +797,7 @@ p <- ggplot(occurrences_by_length, aes(journey_length_type, journey_occurrences_
 
 # plot with standard form
 p + geom_bar(stat = "identity") + theme(axis.text.x=element_text(angle=90,hjust=1)) +
-  xlab("Journey length") + ylab("Journey occurences (%)")
+  xlab("Journey length") + ylab("Journey occurences (%)") + ggmain("No junk")
 
 ```
 
@@ -856,7 +856,125 @@ p +
            aes(fill = pageseq_type),
            position = "dodge") +
   theme(axis.text.x=element_text(angle = 90,hjust=1)) +
-  xlab("Journey length") + ylab("Journey occurences (%)")  + 
+  xlab("Journey length") + ylab("Journey occurences")  + 
+  scale_y_continuous(labels = function(x) format(x, scientific = TRUE))
+
+```
+
+## Does the same pattern hold if we de-loop journeys?
+
+Where a loop is a journey that goes back to itself? Fortunately we have this sequence already specified and named as `Page_Seq_NL`. Thus we simply follow the same procedure as for `PageSequence` to see if the pattern holds.  
+
+```{r}
+## Page_Seq_NL
+
+# aggregate PageSequence, roll them up
+pageseq_sum_NL <- df %>%
+  #drop junk here before rolling up, actually this shouldnt matter
+  filter(str_detect(Page_Seq_NL, "^\\/[a-z A-Z 0-9]")) %>%
+  filter(!str_detect(Page_Seq_NL, "^\\/\\s")) %>%
+  group_by(Page_Seq_NL) %>%
+  # integer overflow, if not as.numeric first
+  summarise( journey_nl_occurrences = sum(as.numeric(Occurrences))) %>%
+  mutate(journey_length = str_count(Page_Seq_NL, ">>") + 1) %>%
+  # create a new variable for one-off or not
+  mutate(pageseq_nl_type = as_factor(
+    if_else(journey_nl_occurrences == 1,
+            true = "one-off",
+            false = "not-one-off"))
+  )
+
+# get prop of occurences, need n
+n <- sum(pageseq_sum_NL$journey_nl_occurrences)
+
+pageseq_sum_NL <- pageseq_sum_NL %>%
+  mutate(journey_nl_occurrences_prop = journey_nl_occurrences/n)
+
+# tidy up
+rm(n)
+
+```
+
+Now we do similar plot to above. The logic is the same so should be correct. Need to cut and group by first.
+
+```{r}
+# Using cut
+no_junk_jl_factor <- pageseq_sum_NL %>%
+  mutate(journey_length_type = cut(journey_length,
+      breaks = c(1:11,  101, 500, Inf),
+      labels = c(as.character(1:10), "11<=x<100", "101<=x<500", "x>=500"),
+      right = FALSE))
+
+no_junk_jl_factor
+```
+
+Barplot it. Needs sense check. Passed.
+
+```{r}
+
+# with  group, in parantheses returns it
+(no_junk_jl_factor %>% 
+  group_by(journey_length_type) %>% 
+  summarise_at(c("journey_nl_occurrences_prop"), sum) -> occurrences_by_length)
+```
+
+
+```{r}
+# *100 to make %
+p <- ggplot(occurrences_by_length, aes(journey_length_type, journey_nl_occurrences_prop*100)) +
+  theme_tufte()
+
+p + geom_bar(stat = "identity") + theme(axis.text.x=element_text(angle=90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences (%)") +
+  ggtitle("No junk, no loops")
+
+```
+
+Get other variable in for fill colour, whether it's one off or not. Should write a function to generalise this, it'll be in the help script.
+
+```{r}
+# with  group, in parantheses returns it
+(no_junk_jl_factor %>% 
+  group_by(journey_length_type, pageseq_nl_type) %>% 
+  summarise_at(c("journey_nl_occurrences"), sum) -> occurrences_by_length_w_oneoff_status)
+
+occurrences_by_length_w_oneoff_status <- occurrences_by_length_w_oneoff_status %>%
+  mutate(journey_nl_occurrences_prop = journey_nl_occurrences/sum(occurrences_by_length_w_oneoff_status$journey_nl_occurrences))
+```
+
+
+```{r}
+# *100 to make %
+p <- ggplot(occurrences_by_length_w_oneoff_status,
+            aes(journey_length_type, journey_nl_occurrences_prop*100)) +
+  theme_tufte()
+
+# dodge bars, rather than stack, i prefer
+p + 
+  geom_bar(stat = "identity",
+           aes(fill = pageseq_nl_type),
+           position = "dodge") +
+  theme(axis.text.x=element_text(angle = 90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences (%)") +
+  ggtitle("No junk, no loops")
+
+```
+
+
+```{r}
+# *100 to make %
+p <- ggplot(occurrences_by_length_w_oneoff_status,
+            aes(journey_length_type, journey_nl_occurrences)) +
+  theme_tufte()
+
+# dodge bars, rather than stack, i prefer
+p + 
+  geom_bar(stat = "identity",
+           aes(fill = pageseq_nl_type),
+           position = "dodge") +
+  theme(axis.text.x=element_text(angle = 90,hjust=1)) +
+  xlab("Journey length") + ylab("Journey occurences (%)") +
+  ggtitle("No junk, no loops") + 
   scale_y_continuous(labels = function(x) format(x, scientific = TRUE))
 
 ```
