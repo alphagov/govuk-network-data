@@ -1,5 +1,5 @@
 import re
-
+import pprint
 import numpy as np
 
 
@@ -24,7 +24,7 @@ def bq_journey_to_pe_list(bq_journey_string):
     :return: The list of page-event tuples.
     """
     # TODO: fix line below, for now it replaces string in a weird /search query within journey (uncommon)
-    bq_journey_string = bq_journey_string.replace(">>iii....", "")
+    bq_journey_string = re.sub(">>iii\.+|>>\.+|\s>>>\s", "",bq_journey_string)
     page_event_list = []
     for hit in bq_journey_string.split(">>"):
         # Old delimiter: split("//")
@@ -119,7 +119,7 @@ def extract_pcd_list(page_event_list, cd_index):
     pcd_list = []
     for page_event in page_event_list:
         if page_event[1] == "PAGE<:<NULL<:<NULL":
-            pcd_list.append((page_event[0], page_event[cd_index].split(",")))
+            pcd_list.append((page_event[0], tuple(page_event[cd_index].split(","))))
     return pcd_list
 
 
