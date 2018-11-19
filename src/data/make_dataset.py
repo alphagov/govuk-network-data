@@ -486,11 +486,11 @@ def read_file(filename):
 
     # Drop journeys of length 1
     if DROP_ONES:
-        logging.debug("Dropping ones...")
+        logging.debug("Dropping journeys of length one...")
         df.query("PageSeq_Length > 1", inplace=True)
     # Keep ONLY journeys of length 1
     elif KEEP_ONES:
-        logging.debug("Keeping only ones...")
+        logging.debug("Keeping journeys of length one...")
         df.query("PageSeq_Length == 1", inplace=True)
     # If
     if DROP_ONE_OFFS:
