@@ -171,7 +171,7 @@ def aggregate(dataframe):
     return metadata_counter
 
 
-def preprocess(dataframe: object, single: bool):
+def preprocess(dataframe):
     """
 
     :param dataframe:
@@ -180,7 +180,9 @@ def preprocess(dataframe: object, single: bool):
     """
     logging.info("Dataframe shape: {}".format(dataframe.shape))
 
-    if not single:
+    multiple = any(dataframe.Sequence.duplicated())
+
+    if multiple:
         logging.info("Working on multiple merged dataframes")
         metadata_counter = aggregate(dataframe)
     else:
@@ -194,7 +196,7 @@ def preprocess(dataframe: object, single: bool):
     logging.info("Occurrences...")
     dataframe['Occurrences'] = dataframe.groupby('Sequence')['Occurrences'].transform('sum')
 
-    if not single:
+    if multiple:
         bef = dataframe.shape[0]
         logger.debug("Current # of rows: {}. Dropping duplicate rows...".format(bef))
         dataframe.drop_duplicates(subset='Sequence', keep='first', inplace=True)
@@ -226,7 +228,7 @@ def initialize_make(files: list, destination: str, merged_filename: str):
 
     df = pd.concat([read_file(file) for file in files], ignore_index=True)
 
-    preprocess(df, len(files) == 1)
+    preprocess(df)
 
     logging.debug(df.iloc[0])
 
