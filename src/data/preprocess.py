@@ -1,4 +1,5 @@
 import re
+
 import numpy as np
 
 
@@ -23,12 +24,13 @@ def bq_journey_to_pe_list(bq_journey_string):
     :return: The list of page-event tuples.
     """
     # TODO: fix line below, for now it replaces string in a weird /search query within journey (uncommon)
-    bq_journey_string = bq_journey_string.replace(">>iii....", "")
+    bq_journey_string = re.sub(">>iii\.+|>>\.+|\s>>>\s", "", bq_journey_string)
     page_event_list = []
     for hit in bq_journey_string.split(">>"):
         # Old delimiter: split("//")
         page_event_tup = clean_tuple(hit.split("<<"))
-        if len(page_event_tup) == 2:
+        # For len==3 Taxon present within bq_journey_string
+        if len(page_event_tup) == 2 or len(page_event_tup) == 3:
             page_event_list.append(tuple(page_event_tup))
         else:
             # TODO remove in future
@@ -107,10 +109,48 @@ def extract_pe_components(page_event_list, i):
     # page_event is a tuple
     for page_event in page_event_list:
         if i == 0 and page_event[1] == "PAGE<:<NULL<:<NULL":
-            hit_list.append(page_event[0])
+            hit_list.append(page_event[i])
         elif i == 1:
             hit_list.append(split_event(page_event[i]))
     return hit_list
+
+
+def extract_pcd_list(page_event_list, cd_index):
+    pcd_list = []
+    for page_event in page_event_list:
+        if page_event[1] == "PAGE<:<NULL<:<NULL":
+            pcd_list.append((page_event[0], tuple(page_event[cd_index].split(","))))
+    return pcd_list
+
+
+def nest_taxon_list(taxon_list):
+    return [tuple(taxon.split(",")) for taxon in taxon_list]
+
+
+def extract_cd_components(page_event_list, i):
+    """
+    TODO: probably add functionality as a condition to extract_pe_components
+    Extract cd_list from page_event_cd_list
+    :param page_event_list: list of (page,event) tuples
+    :param i: 0 for page_list 1, for event_list
+    :return: appropriate hit_list
+    """
+    # page_event_cd is a tuple
+    # For initial taxon implementation
+    return [page_event_cd[i] for page_event_cd in page_event_list if page_event_cd[1] == "PAGE<:<NULL<:<NULL"]
+
+
+def extract_page_cd_components(page_event_list, i):
+    """
+    TODO: probably add functionality as a condition to extract_pe_components
+    Extract cd_list from page_event_cd_list
+    :param page_event_list: list of (page,event) tuples
+    :param i: 0 for page_list 1, for event_list
+    :return: appropriate hit_list
+    """
+    # page_event_cd is a tuple
+    # For initial taxon implementation
+    return [(page_event_cd[0], page_event_cd[i]) for page_event_cd in page_event_list]
 
 
 def collapse_loop(page_list):
