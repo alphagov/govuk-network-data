@@ -84,7 +84,8 @@ target/
 # data/
 *.gz
 *.csv
-
+*.parq
+notebooks/dask-worker-space/
 # Mac OS-specific storage files
 .DS_Store
 
