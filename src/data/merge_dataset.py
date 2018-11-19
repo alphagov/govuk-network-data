@@ -151,15 +151,6 @@ def agg_dict(agg_from_dict, row_dict):
 
 
 def aggregate(dataframe):
-    """
-
-    :param code_df_slice:
-    :param depth:
-    :param multiple_dfs:
-    :return:
-    """
-    logging.info("Dataframe shape: {}".format(dataframe.shape))
-
     metadata_counter = {}
     for agg in dataframe.columns:
         if agg in COUNTABLE_AGGREGATE_COLUMNS:
@@ -177,19 +168,42 @@ def aggregate(dataframe):
 
         if i % 500000 == 0:
             logging.debug("At index: {}".format(i))
+    return metadata_counter
+
+
+def preprocess(dataframe: object, single: bool):
+    """
+
+    :param dataframe:
+    :param single:
+    :return:
+    """
+    logging.info("Dataframe shape: {}".format(dataframe.shape))
+
+    if not single:
+        logging.info("Working on multiple merged dataframes")
+        metadata_counter = aggregate(dataframe)
+    else:
+        logging.info("Working on a single dataframe")
+        for agg in dataframe.columns:
+
+            if agg in COUNTABLE_AGGREGATE_COLUMNS:
+                logging.info("Agg {}".format(agg))
+                dataframe[agg] = dataframe[agg].map(lambda x: list(str_to_dict(x).items()))
 
     logging.info("Occurrences...")
     dataframe['Occurrences'] = dataframe.groupby('Sequence')['Occurrences'].transform('sum')
 
-    bef = dataframe.shape[0]
-    logger.debug("Current # of rows: {}. Dropping duplicate rows...".format(bef))
-    dataframe.drop_duplicates(subset='Sequence', keep='first', inplace=True)
-    after = dataframe.shape[0]
-    logger.debug("Dropped {} duplicated rows.".format(bef - after))
+    if not single:
+        bef = dataframe.shape[0]
+        logger.debug("Current # of rows: {}. Dropping duplicate rows...".format(bef))
+        dataframe.drop_duplicates(subset='Sequence', keep='first', inplace=True)
+        after = dataframe.shape[0]
+        logger.debug("Dropped {} duplicated rows.".format(bef - after))
 
-    for agg in metadata_counter.keys():
-        logger.info("Mapping {}, items: {}...".format(agg, len(metadata_counter[agg])))
-        dataframe[agg] = dataframe['Sequence'].map(lambda x: list(metadata_counter[agg][x].items()))
+        for agg in metadata_counter.keys():
+            logger.info("Mapping {}, items: {}...".format(agg, len(metadata_counter[agg])))
+            dataframe[agg] = dataframe['Sequence'].map(lambda x: list(metadata_counter[agg][x].items()))
 
     if DROP_ONE_OFFS:
         dataframe['Page_Seq_Occurrences'] = dataframe.groupby('PageSequence')['Occurrences'].transform('sum')
@@ -212,27 +226,14 @@ def initialize_make(files: list, destination: str, merged_filename: str):
 
     df = pd.concat([read_file(file) for file in files], ignore_index=True)
 
-    aggregate(df)
+    preprocess(df, len(files) == 1)
 
     logging.debug(df.iloc[0])
 
-    logging.debug("First save, just merged...")
+    logging.debug("Saving merged dataframe...")
     path_to_file = os.path.join(destination, "merged_" + merged_filename)
     logger.info("Saving at: {}".format(path_to_file))
     df.to_csv(path_to_file, sep="\t", compression='gzip', index=False)
-
-    # sequence_preprocess(df)
-    # event_preprocess(df)
-    # taxon_preprocess(df)
-    # add_loop_columns(df)
-    #
-    # logger.info("Dataframe columns: {}".format(df.columns))
-    # logger.info("Shape: {}".format(df.shape))
-    # print("Example final row:\n", df.iloc[0])
-    #
-    # path_to_file = os.path.join(destination, merged_filename)
-    # logger.info("Saving at: {}".format(path_to_file))
-    # df.to_csv(path_to_file, compression='gzip', index=False)
 
 
 def read_file(filename):
