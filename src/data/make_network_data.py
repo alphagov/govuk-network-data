@@ -2,10 +2,10 @@ import argparse
 import gzip
 import logging.config
 import os
+import re
 import sys
 from ast import literal_eval
 from collections import Counter
-import re
 
 import pandas as pd
 
@@ -72,10 +72,16 @@ def edgelist_from_subpaths(user_journey_df, delooped=False):
         logger.debug("Creating edge list from original journeys (based on Subpaths) ...")
 
     edgelist_counter = Counter()
+    node_id = {}
+    id = 0
     for i, row in user_journey_df.iterrows():
         for edge in row[subpath_default]:
             edgelist_counter[tuple(edge)] += row[occurrences_default]
-    return edgelist_counter
+            for node in edge:
+                if node not in node_id.keys():
+                    node_id[node] = id
+                    id += 1
+    return edgelist_counter, node_id
 
 
 def nodes_from_edgelist(edgelist):
@@ -101,18 +107,23 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
     generate_subpaths(df)
     if not any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
         compute_occurrences(df)
-    edges = edgelist_from_subpaths(df, delooped)
+    edges, node_id = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
     with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
-        file.write("Source_node, Destination_Node, Weight\n".encode())
+        file.write("Source_node,Source_id,Destination_Node,Destination_id,Weight\n".encode())
         for key, value in edges.items():
-            file.write("{},{},{}\n".format(key[0], key[1], value).encode())
+            file.write("{},{},{}\n".format(key[0], node_id[key[0]], key[1], node_id[key[1]], value).encode())
     logger.info("Writing node list to file...")
     with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
+        file.write("Node, Node_id\n".encode())
         for node in nodes:
-            file.write(str(node + "\n").encode())
+            file.write("{},{}\n".format(node, node_id[node]).encode())
+
+    print("check")
+    with gzip.open(dest_filename + "_nodes.csv.gz", "rt") as file:
+        print([node.replace("\n", "") for node in file][0:10])
 
 
 if __name__ == "__main__":
