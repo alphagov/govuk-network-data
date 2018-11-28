@@ -2,10 +2,11 @@ import argparse
 import gzip
 import logging.config
 import os
-import re
 import sys
 from ast import literal_eval
 from collections import Counter
+import re
+
 
 import pandas as pd
 
@@ -13,7 +14,7 @@ src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 import preprocess as prep
 
-COLUMNS_TO_KEEP = ['Page_List_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences', 'Occurrences_NL']
+COLUMNS_TO_KEEP = ['Page_List_NL','PageSequence','Page_Seq_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences', 'Occurrences_NL']
 
 
 def read_file(filename):
@@ -26,6 +27,7 @@ def read_file(filename):
     logger.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
     columns = set(df.columns.values)
+    # print(columns)
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
     for column in COLUMNS_TO_KEEP:
         if isinstance(df[column].iloc[0], str) and any(["," in val for val in df[column].values]):
@@ -72,6 +74,7 @@ def edgelist_from_subpaths(user_journey_df, delooped=False):
         logger.debug("Creating edge list from original journeys (based on Subpaths) ...")
 
     edgelist_counter = Counter()
+
     node_id = {}
     id = 0
     for i, row in user_journey_df.iterrows():
@@ -105,7 +108,7 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
     """
     df = read_file(source_filename)
     generate_subpaths(df)
-    if not any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
+    if any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
         compute_occurrences(df)
     edges, node_id = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
@@ -120,10 +123,6 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
         file.write("Node, Node_id\n".encode())
         for node in nodes:
             file.write("{},{}\n".format(node, node_id[node]).encode())
-
-    print("check")
-    with gzip.open(dest_filename + "_nodes.csv.gz", "rt") as file:
-        print([node.replace("\n", "") for node in file][0:10])
 
 
 if __name__ == "__main__":
