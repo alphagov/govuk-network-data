@@ -34,6 +34,9 @@ def read_file(filename):
     return df
 
 
+def compute_occurrences(user_journey_df):
+    return None
+
 def generate_subpaths(user_journey_df):
     """
     Compute lists of subpaths ie node-pairs/edges (where a node is a page) from both original and de-looped page_lists
@@ -89,9 +92,9 @@ def write_node_edge_files(source_filename, dest_filename):
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
     with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
-        file.write("Source node, Destination Node, Weight\n".encode())
+        file.write("Source_node, Destination_Node, Weight\n".encode())
         for key, value in edges.items():
-            file.write("{},{},{}\n".format(key[0], key[1] ,value).encode())
+            file.write("{},{},{}\n".format(key[0], key[1], value).encode())
     logger.info("Writing node list to file...")
     with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
         for node in nodes:
