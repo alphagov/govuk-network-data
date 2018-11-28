@@ -5,6 +5,7 @@ import os
 import sys
 from ast import literal_eval
 from collections import Counter
+import re
 
 import pandas as pd
 
@@ -34,7 +35,10 @@ def read_file(filename):
 
 
 def compute_occurrences(user_journey_df):
-    return None
+    print("missing", user_journey_df.columns)
+    user_journey_df['Page_Seq_Occurrences'] = user_journey_df.groupby('PageSequence')['Occurrences'].transform(
+        'sum')
+    user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
 
 
 def generate_subpaths(user_journey_df):
@@ -59,16 +63,19 @@ def edgelist_from_subpaths(user_journey_df, delooped=False):
     :return: edgelist counter
     """
     subpath_default = 'Subpaths'
-    occurrences_default = "Page_Seq_Occurences"
-    if delooped:
-        subpath_default = 'Subpaths_NL'
-        occurrences_default = "Occurrences_NL"
+    occurrences_default = 'Page_Seq_Occurrences'
 
-    logger.debug("Creating edge list from de-looped journeys (based on Subpaths_NL) ...")
+    if delooped:
+        logger.debug("Creating edge list from de-looped journeys (based on Subpaths_NL) ...")
+        subpath_default = 'Subpaths_NL'
+        occurrences_default = 'Occurrences_NL'
+    else:
+        logger.debug("Creating edge list from original journeys (based on Subpaths) ...")
+
     edgelist_counter = Counter()
-    for tup in user_journey_df.itertuples():
-        for edge in tup[subpath_default]:
-            edgelist_counter[tuple(edge)] += tup[occurrences_default]
+    for i, row in user_journey_df.iterrows():
+        for edge in row[subpath_default]:
+            edgelist_counter[tuple(edge)] += row[occurrences_default]
     return edgelist_counter
 
 
@@ -93,7 +100,7 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
     """
     df = read_file(source_filename)
     generate_subpaths(df)
-    if not any("Occurrences" in df.columns):
+    if any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
         compute_occurrences(df)
     edges = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
@@ -138,6 +145,6 @@ if __name__ == "__main__":
 
     if os.path.exists(input_filename):
         logger.info("Working on file: {}".format(input_filename))
-        write_node_edge_files(input_filename, output_filename)
+        write_node_edge_files(input_filename, output_filename, args.delooped)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
