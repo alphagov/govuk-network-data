@@ -35,7 +35,6 @@ def read_file(filename):
 
 
 def compute_occurrences(user_journey_df):
-    print("missing", user_journey_df.columns)
     user_journey_df['Page_Seq_Occurrences'] = user_journey_df.groupby('PageSequence')['Occurrences'].transform(
         'sum')
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
@@ -100,7 +99,7 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
     """
     df = read_file(source_filename)
     generate_subpaths(df)
-    if any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
+    if not any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
         compute_occurrences(df)
     edges = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
