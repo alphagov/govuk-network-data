@@ -1,17 +1,16 @@
 import argparse
+import gzip
 import logging.config
 import os
 import sys
 from ast import literal_eval
 from collections import Counter
-import gzip
 
 import pandas as pd
 
 src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 import preprocess as prep
-
 
 COLUMNS_TO_KEEP = ['Page_List_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences', 'Occurrences_NL']
 
@@ -37,6 +36,7 @@ def read_file(filename):
 def compute_occurrences(user_journey_df):
     return None
 
+
 def generate_subpaths(user_journey_df):
     """
     Compute lists of subpaths ie node-pairs/edges (where a node is a page) from both original and de-looped page_lists
@@ -50,7 +50,7 @@ def generate_subpaths(user_journey_df):
     user_journey_df['Subpaths_NL'] = user_journey_df['Page_List_NL'].map(prep.subpaths_from_list)
 
 
-def edgelist_from_subpaths(user_journey_df):
+def edgelist_from_subpaths(user_journey_df, delooped=False):
     """
     Generate a counter that represents the edge list. Keys are edges (node pairs) which represent a user going from
     first element of pair to second one), values are a sum of journey occurrences (de-looped occurrences since current
@@ -58,11 +58,17 @@ def edgelist_from_subpaths(user_journey_df):
     :param user_journey_df: user journey dataframe
     :return: edgelist counter
     """
+    subpath_default = 'Subpaths'
+    occurrences_default = "Page_Seq_Occurences"
+    if delooped:
+        subpath_default = 'Subpaths_NL'
+        occurrences_default = "Occurrences_NL"
+
     logger.debug("Creating edge list from de-looped journeys (based on Subpaths_NL) ...")
     edgelist_counter = Counter()
     for tup in user_journey_df.itertuples():
-        for edge in tup.Subpaths_NL:
-            edgelist_counter[tuple(edge)] += tup.Occurrences_NL
+        for edge in tup[subpath_default]:
+            edgelist_counter[tuple(edge)] += tup[occurrences_default]
     return edgelist_counter
 
 
@@ -79,7 +85,7 @@ def nodes_from_edgelist(edgelist):
     return sorted(list(node_list))
 
 
-def write_node_edge_files(source_filename, dest_filename):
+def write_node_edge_files(source_filename, dest_filename, delooped):
     """
     Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
     :param source_filename: dataframe to be loaded
@@ -87,7 +93,9 @@ def write_node_edge_files(source_filename, dest_filename):
     """
     df = read_file(source_filename)
     generate_subpaths(df)
-    edges = edgelist_from_subpaths(df)
+    if not any("Occurrences" in df.columns):
+        compute_occurrences(df)
+    edges = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
@@ -109,6 +117,9 @@ if __name__ == "__main__":
     parser.add_argument('output_filename', help='Naming convention for resulting node and edge files.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     # TODO: add option to choose between original and de-looped journeys (to compute edges)
+    parser.add_argument('-d', '--delooped', action='store_true', default=False,
+                        help='Use delooped journeys for edge and weight computation')
+
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
