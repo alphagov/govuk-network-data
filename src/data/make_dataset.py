@@ -52,7 +52,7 @@ DEPTH_LIM: int = 1
 BATCH_SIZE: int = 3
 # A bit of a magic number, but limits dataframes that can be passed off to workers. If dataframe exceeds this size,
 # switch to sequential execution.
-ROW_LIMIT: int = 3000000
+ROW_LIMIT: int = 1000000
 
 
 def list_to_dict(metadata_list):
@@ -143,17 +143,30 @@ def event_preprocess(user_journey_df):
     event_counters(user_journey_df)
 
 
+def taxon_preprocess(user_journey_df):
+    """
+    Bulk map functions for event frequency/counts.
+    :param user_journey_df: dataframe
+    :return: no return, columns added in place.
+    """
+    logger.info("Preprocess taxons...")
+    logger.debug("Page_Event_List to Taxon_List...")
+    user_journey_df['Taxon_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_cd_components(x, 2))
+    logger.debug("Page_Event_List to Taxon_Page_List...")
+    user_journey_df['Taxon_Page_List'] = user_journey_df['Page_Event_List'].map(lambda x: prep.extract_pcd_list(x, 2))
+
+
 def event_counters(user_journey_df):
     """
     Bulk map functions for event frequency/counts.
     :param user_journey_df: dataframe
     :return: no return, columns added in place.
     """
-    logger.debug("Event_List to ...")
+    logger.debug("Computing number of event categories...")
     user_journey_df['num_event_cats'] = user_journey_df['Event_List'].map(feat.count_event_cat)
-    logger.debug("Event_List to ...")
+    logger.debug("Computing frequency of event categories...")
     user_journey_df['Event_cats_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat)
-    logger.debug("Event_List to ...")
+    logger.debug("Computing frequency of event categories and actions...")
     user_journey_df['Event_cat_act_agg'] = user_journey_df['Event_List'].map(feat.aggregate_event_cat_act)
 
 
@@ -177,7 +190,7 @@ def add_loop_columns(user_journey_df):
 
     # Count occurrences of de-looped journeys, most generic journey frequency metric.
     logger.debug("Aggregating de-looped journey occurrences...")
-    user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Page_Seq_Occurrences'].transform('sum')
+    user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
     logger.debug("De-looped page sequence to list...")
     user_journey_df['Page_List_NL'] = user_journey_df['Page_Seq_NL'].map(
         lambda x: x.split(">>") if isinstance(x, str) else np.NaN)
@@ -193,8 +206,10 @@ def groupby_meta(df_slice: DataFrame, depth: int, multiple_dfs: bool):
     :return: no return, mapping and drops happen inplace on df_slice.
     """
     agg = df_slice.columns[1]
+    print("multiple dfs:", multiple_dfs)
     # One-off
-    if depth == 0:
+    if isinstance(df_slice[agg].iloc[0], str):
+        print("list to dict")
         df_slice[agg] = df_slice[agg].map(str_to_dict)
     if multiple_dfs:
         metadata_gpb = df_slice.groupby('Sequence')[agg].apply(aggregate_dict)
@@ -230,7 +245,6 @@ def conditional_pre_gpb_drop(df_occ_slice: list, df_meta_slice: list):
             if df_code_i == df_code_j:
                 seq_occ = df_slice_i.Sequence.values
                 df_slice_j.query("Sequence.isin(@seq_occ)", inplace=True)
-                # print("after", df_slice_j.shape)
     return df_meta_slice
 
 
@@ -249,7 +263,11 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
         new_list = []
         partitions = multi_utils.partition_list(dflist, chunks, FEWER_THAN_CPU)
         multi_dfs = []
+        parts_to_merge = len(partitions)
+        print("number of partitions:", partitions)
+        print("number of dfs:", len(dflist))
         for i, index_list in enumerate(partitions):
+            print(index_list)
             lst = [dflist[ind] for ind in index_list]
             multi_dfs.append(len(lst) > 1)
             logger.info("Run: {} Num_of_df_to_merge: {}".format(i, len(lst)))
@@ -258,10 +276,15 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
             logger.info("Size of merged dataframe: {}".format(pair_df.shape))
             new_list.append(pair_df)
 
+        print(parts_to_merge)
         # There is a dataframe from a previous run to include, and recursive level is deep enough
-        if additional is not None and depth > 0 and any(multi_dfs):
-            print("Adding to ", multi_dfs[-1])
-            new_list[-1].append(additional)
+        if additional is not None:
+            logging.info("Adding to previously processed dataframe...")
+            new_list.append(additional)
+            multi_dfs.append(False)
+            parts_to_merge += 1
+            chunks += 1
+            logging.info("Number of dataframes post add: {}".format(len(new_list)))
 
         # Slice dataframes contained in new_list into their base columns: one list for occurrences, another for
         # metadata
@@ -292,10 +315,10 @@ def process_dataframes(pool: Pool, dflist: list, chunks: int, depth: int = 0, ad
         # TODO: debugging, remove post-testing
         # print("THEM COLUMNS", [(new.columns, new.shape) for _, new in new_list])
         #
-        new_list = multi_utils.merge_sliced_df(new_list, len(partitions))
+        new_list = multi_utils.merge_sliced_df(new_list, parts_to_merge)
         # Recursive call, pass new_list for evaluation/merging, reduce number of chunks,
         # increase recursive level/depth. If available, propagate the additional df.
-        return process_dataframes(pool, new_list, int(chunks / 2), depth + 1, additional)
+        return process_dataframes(pool, new_list, int(chunks / 2), depth + 1, None)
     else:
         return dflist[0]
 
@@ -340,11 +363,12 @@ def aggregate(code_df_slice: tuple, depth: int, multiple_dfs: bool):
     elif "Occurrences" in df_slice.columns:
         logging.debug("Occurrences...")
         df_slice['Occurrences'] = df_slice.groupby('Sequence')['Occurrences'].transform('sum')
-        if DROP_ONE_OFFS:
-            df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
+        # if DROP_ONE_OFFS:
+        #     df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
         if multiple_dfs:
             drop_duplicate_rows(df_slice)
         if ((depth >= DEPTH_LIM and MAX_DEPTH >= 2) or SINGLE) and DROP_ONE_OFFS:
+            df_slice['Page_Seq_Occurrences'] = df_slice.groupby('PageSequence')['Occurrences'].transform('sum')
             bef = df_slice.shape[0]
             # logger.info("Current # of rows: {}. Dropping journeys occurring only once..".format(bef))
             df_slice = df_slice[df_slice.Page_Seq_Occurrences > 1]
@@ -383,8 +407,15 @@ def initialize_make(files: list, destination: str, merged_filename: str):
             df = distribute_tasks(batch, pool, num_chunks, df)
 
     logging.debug(df.iloc[0])
+
+    logging.debug("First save...")
+    path_to_file = os.path.join(destination, "pre_" + merged_filename)
+    logger.info("Saving at: {}".format(path_to_file))
+    df.to_csv(path_to_file, compression='gzip', index=False)
+
     sequence_preprocess(df)
     event_preprocess(df)
+    taxon_preprocess(df)
     add_loop_columns(df)
     logger.info("Dataframe columns: {}".format(df.columns))
     logger.info("Shape: {}".format(df.shape))
@@ -427,11 +458,12 @@ def distribute_tasks(files, pool, num_chunks, df_prev=None):
     # logger.info("chunks: {} fewer: {} max_depth: {}".format(num_chunks, FEWER_THAN_CPU, MAX_DEPTH))
     logger.debug("Number of files: {}".format(len(files)))
     logger.info("Multi start...")
-    df_list = pool.map(read_file, files)
+    # for file in files:
+    df_list = [read_file(file) for file in files]
 
-    if df_prev is not None:
-        logger.info("Adding previous dataframe")
-        # df_list.append(df_prev)
+    # if df_prev is not None:
+    #     logger.info("Adding previous dataframe")
+    #     # df_list.append(df_prev)
 
     logger.info("Distributing tasks...")
     df = process_dataframes(pool, df_list, num_chunks, 0, df_prev)
@@ -447,20 +479,25 @@ def read_file(filename):
     """
     logging.info("Reading: {}".format(filename))
     df: DataFrame = pd.read_csv(filename, compression="gzip")
+    # logging.info("pre {}".format(df.shape))
+    df.dropna(subset=['Sequence'], inplace=True)
+    # logging.info("post {}".format(df.shape))
     # print(df.shape)
+
     # Drop journeys of length 1
     if DROP_ONES:
-        logging.debug("Dropping ones")
+        logging.debug("Dropping journeys of length one...")
         df.query("PageSeq_Length > 1", inplace=True)
     # Keep ONLY journeys of length 1
     elif KEEP_ONES:
-        logging.debug("Keeping only ones")
+        logging.debug("Keeping journeys of length one...")
         df.query("PageSeq_Length == 1", inplace=True)
     # If
     if DROP_ONE_OFFS:
         if "PageSequence" not in df.columns:
             sequence_preprocess(df)
             df.drop(DROPABLE_COLS, axis=1, inplace=True)
+    # [0: 10000]
     return df
 
 
@@ -472,7 +509,7 @@ def generate_file_list(source_dir, stub):
     :param stub: Filename stub for file filtering
     :return: a list of files
     """
-    file_list = [os.path.join(source_dir, file) for file in os.listdir(source_dir)]
+    file_list = sorted([os.path.join(source_dir, file) for file in os.listdir(source_dir)])
     if stub is not None:
         return [file for file in file_list if stub in file]
     else:
@@ -546,4 +583,3 @@ if __name__ == "__main__":
     # list2 = [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)], [("d", 3), ("t", 1), ("m", 2)]
     # print(list2)
     # print(aggregate_dict(list2))
-
