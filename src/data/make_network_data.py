@@ -2,11 +2,10 @@ import argparse
 import gzip
 import logging.config
 import os
+import re
 import sys
 from ast import literal_eval
 from collections import Counter
-import re
-
 
 import pandas as pd
 
@@ -14,7 +13,9 @@ src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 import preprocess as prep
 
-COLUMNS_TO_KEEP = ['Page_List_NL','PageSequence','Page_Seq_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences', 'Occurrences_NL']
+COLUMNS_TO_KEEP = ['Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences',
+                   'Occurrences_NL']
+COLUMNS_TO_EVAL = ['Page_List_NL', 'Page_List']
 
 
 def read_file(filename):
@@ -27,9 +28,8 @@ def read_file(filename):
     logger.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
     columns = set(df.columns.values)
-    # print(columns)
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
-    for column in COLUMNS_TO_KEEP:
+    for column in COLUMNS_TO_EVAL:
         if isinstance(df[column].iloc[0], str) and any(["," in val for val in df[column].values]):
             logger.debug("Working on literal_eval for \"{}\"".format(column))
             df[column] = df[column].map(literal_eval)
@@ -37,8 +37,10 @@ def read_file(filename):
 
 
 def compute_occurrences(user_journey_df):
+    logging.debug("Computing Page_Seq_Occurrences...")
     user_journey_df['Page_Seq_Occurrences'] = user_journey_df.groupby('PageSequence')['Occurrences'].transform(
         'sum')
+    logging.debug("Computing Occurrences_NL...")
     user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
 
 
@@ -49,7 +51,7 @@ def generate_subpaths(user_journey_df):
     :param user_journey_df: user journey dataframe
     :return: inplace assign new columns
     """
-    logger.debug("Setting up sub-paths column...")
+    logger.debug("Setting up subpaths column...")
     user_journey_df['Subpaths'] = user_journey_df['Page_List'].map(prep.subpaths_from_list)
     logger.debug("Setting up de-looped sub-paths column...")
     user_journey_df['Subpaths_NL'] = user_journey_df['Page_List_NL'].map(prep.subpaths_from_list)
@@ -109,7 +111,9 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
     df = read_file(source_filename)
     generate_subpaths(df)
     if not any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
+        logging.info("Computing specialized occurrences...")
         compute_occurrences(df)
+
     edges, node_id = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
