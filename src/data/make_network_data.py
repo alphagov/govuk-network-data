@@ -27,7 +27,7 @@ def read_file(filename, delooped = False):
     logger.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
     columns = set(df.columns.values)
-    df.drop(['Occurrences_NL,Page_Seq_Occurrences'], axis=1, inplace=True)
+    df.drop(['Occurrences_NL', 'Page_Seq_Occurrences'], axis=1, inplace=True)
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
 
     column_to_eval = 'Page_List'
