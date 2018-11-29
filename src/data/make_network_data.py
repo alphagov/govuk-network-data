@@ -36,10 +36,12 @@ def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False):
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
 
     column_to_eval = 'Page_List'
-
+    drop_dupes = 'PageSequence'
     if use_delooped_journeys:
-        print("got here")
         column_to_eval = 'Page_List_NL'
+        drop_dupes = 'Page_Seq_NL'
+
+    df.drop_duplicates(drop_dupes, keep="first", inplace=True)
 
     if isinstance(df[column_to_eval].iloc[0], str) and any(["," in val for val in df[column_to_eval].values]):
         logger.debug("Working on literal_eval for \"{}\"".format(column_to_eval))
@@ -48,7 +50,7 @@ def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False):
 
 
 def compute_occurrences(user_journey_df, page_sequence, occurrences):
-    logging.debug("Computing specialized occurrences: {}...".format(occurrences))
+    logging.debug("Computing specialized occurrences \"{}\" based on  \"{}\"...".format(occurrences, page_sequence))
     user_journey_df[occurrences] = user_journey_df.groupby(page_sequence)['Occurrences'].transform(
         'sum')
 
@@ -62,7 +64,7 @@ def generate_subpaths(user_journey_df, page_list, subpaths):
     :param user_journey_df: user journey dataframe
     :return: inplace assign new columns
     """
-    logger.debug("Setting up {} column...".format(subpaths))
+    logger.debug("Setting up \"{}\" based on  \"{}\"...".format(subpaths, page_list))
     user_journey_df[subpaths] = user_journey_df[page_list].map(prep.subpaths_from_list)
 
 
