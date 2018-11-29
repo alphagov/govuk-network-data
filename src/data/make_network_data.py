@@ -2,7 +2,6 @@ import argparse
 import gzip
 import logging.config
 import os
-import re
 import sys
 from ast import literal_eval
 from collections import Counter
@@ -15,10 +14,10 @@ import preprocess as prep
 
 COLUMNS_TO_KEEP = ['Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences',
                    'Occurrences_NL']
-COLUMNS_TO_EVAL = ['Page_List_NL', 'Page_List']
 
 
-def read_file(filename):
+
+def read_file(filename, delooped = False):
     """
     Read a dataframe compressed csv file, init as dataframe, drop unnecessary columns, prepare target columns
     to be evaluated as lists with literal_eval.
@@ -28,33 +27,37 @@ def read_file(filename):
     logger.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
     columns = set(df.columns.values)
+    df.drop(['Occurrences_NL,Page_Seq_Occurrences'], axis=1, inplace=True)
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
-    for column in COLUMNS_TO_EVAL:
-        if isinstance(df[column].iloc[0], str) and any(["," in val for val in df[column].values]):
-            logger.debug("Working on literal_eval for \"{}\"".format(column))
-            df[column] = df[column].map(literal_eval)
+
+    column_to_eval = 'Page_List'
+
+    if delooped:
+        column_to_eval = 'Page_List_NL'
+
+    if isinstance(df[column_to_eval].iloc[0], str) and any(["," in val for val in df[column_to_eval].values]):
+        logger.debug("Working on literal_eval for \"{}\"".format(column_to_eval))
+        df[column_to_eval] = df[column_to_eval].map(literal_eval)
     return df
 
 
-def compute_occurrences(user_journey_df):
-    logging.debug("Computing Page_Seq_Occurrences...")
-    user_journey_df['Page_Seq_Occurrences'] = user_journey_df.groupby('PageSequence')['Occurrences'].transform(
+def compute_occurrences(user_journey_df, page_sequence, occurrences):
+    logging.debug("Computing {}...".format(occurrences))
+    user_journey_df[occurrences] = user_journey_df.groupby(page_sequence)['Occurrences'].transform(
         'sum')
-    logging.debug("Computing Occurrences_NL...")
-    user_journey_df['Occurrences_NL'] = user_journey_df.groupby('Page_Seq_NL')['Occurrences'].transform('sum')
 
 
-def generate_subpaths(user_journey_df):
+def generate_subpaths(user_journey_df, page_list, subpaths):
     """
     Compute lists of subpaths ie node-pairs/edges (where a node is a page) from both original and de-looped page_lists
     (page-hit only journeys)
+    :param subpaths:
+    :param page_list:
     :param user_journey_df: user journey dataframe
     :return: inplace assign new columns
     """
-    logger.debug("Setting up subpaths column...")
-    user_journey_df['Subpaths'] = user_journey_df['Page_List'].map(prep.subpaths_from_list)
-    logger.debug("Setting up de-looped sub-paths column...")
-    user_journey_df['Subpaths_NL'] = user_journey_df['Page_List_NL'].map(prep.subpaths_from_list)
+    logger.debug("Setting up {} column...".format(subpaths))
+    user_journey_df[subpaths] = user_journey_df[page_list].map(prep.subpaths_from_list)
 
 
 def edgelist_from_subpaths(user_journey_df, delooped=False):
@@ -62,19 +65,30 @@ def edgelist_from_subpaths(user_journey_df, delooped=False):
     Generate a counter that represents the edge list. Keys are edges (node pairs) which represent a user going from
     first element of pair to second one), values are a sum of journey occurrences (de-looped occurrences since current
     computation is based on de-looped subpaths), ie number of times a user/agent went from one page (node) to another.
+    :param delooped:
     :param user_journey_df: user journey dataframe
     :return: edgelist counter
     """
     subpath_default = 'Subpaths'
     occurrences_default = 'Page_Seq_Occurrences'
+    page_list_default = 'Page_List'
+    page_sequence_default = 'PageSequence'
 
     if delooped:
         logger.debug("Creating edge list from de-looped journeys (based on Subpaths_NL) ...")
         subpath_default = 'Subpaths_NL'
         occurrences_default = 'Occurrences_NL'
+        page_list_default = 'Page_List_NL'
+        page_sequence_default = 'Page_Seq_NL'
+
     else:
         logger.debug("Creating edge list from original journeys (based on Subpaths) ...")
 
+    if occurrences_default not in user_journey_df.columns:
+        logging.info("Computing specialized occurrences: {}...".format(occurrences_default))
+        compute_occurrences(user_journey_df, page_sequence_default, occurrences_default)
+
+    generate_subpaths(user_journey_df, page_list_default, subpath_default)
     edgelist_counter = Counter()
 
     node_id = {}
@@ -109,11 +123,6 @@ def write_node_edge_files(source_filename, dest_filename, delooped):
     :param dest_filename: filename prefix for node and edge files
     """
     df = read_file(source_filename)
-    generate_subpaths(df)
-    if not any(re.search("Occurrences_NL|Page_Seq_Occurrences", col) for col in df.columns):
-        logging.info("Computing specialized occurrences...")
-        compute_occurrences(df)
-
     edges, node_id = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
