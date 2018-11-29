@@ -12,7 +12,7 @@ src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 import preprocess as prep
 
-COLUMNS_TO_KEEP = ['Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Page_List', 'Occurrences', 'Page_Seq_Occurrences',
+COLUMNS_TO_KEEP = ['Page_List', 'Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Occurrences', 'Page_Seq_Occurrences',
                    'Occurrences_NL']
 
 
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     if os.path.exists(input_filename):
         logger.info("Working on file: {}".format(input_filename))
         logger.info("Using de-looped journeys: {}\nDropping incorrect occurrence counts: {}".format(args.delooped,
-                                                                                                     args.incorrect))
+                                                                                                    args.incorrect))
         write_node_edge_files(input_filename, output_filename, args.delooped, args.incorrect)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
