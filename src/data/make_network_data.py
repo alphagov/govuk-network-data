@@ -48,7 +48,7 @@ def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False):
 
 
 def compute_occurrences(user_journey_df, page_sequence, occurrences):
-    logging.debug("Computing {}...".format(occurrences))
+    logging.debug("Computing specialized occurrences: {}...".format(occurrences))
     user_journey_df[occurrences] = user_journey_df.groupby(page_sequence)['Occurrences'].transform(
         'sum')
 
@@ -91,7 +91,6 @@ def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
         logger.debug("Creating edge list from original journeys (based on Subpaths) ...")
 
     if occurrences_default not in user_journey_df.columns:
-        logging.info("Computing specialized occurrences: {}...".format(occurrences_default))
         compute_occurrences(user_journey_df, page_sequence_default, occurrences_default)
 
     generate_subpaths(user_journey_df, page_list_default, subpath_default)
