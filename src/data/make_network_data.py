@@ -16,19 +16,20 @@ COLUMNS_TO_KEEP = ['Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Page_List', '
                    'Occurrences_NL']
 
 
-def read_file(filename, delooped = False, incorrect_occurrences = False):
+def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False):
     """
     Read a dataframe compressed csv file, init as dataframe, drop unnecessary columns, prepare target columns
     to be evaluated as lists with literal_eval.
-    :param delooped:
-    :param incorrect_occurrences:
+    :param use_delooped_journeys:
+    :param drop_incorrect_occ:
     :param filename: processed_journey dataframe
     :return: processed for list-eval dataframe
     """
     logger.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
 
-    if incorrect_occurrences:
+    if drop_incorrect_occ:
+        logger.debug("Dropping incorrect occurrence counts...")
         df.drop(['Occurrences_NL', 'Page_Seq_Occurrences'], axis=1, inplace=True)
 
     columns = set(df.columns.values)
@@ -36,7 +37,7 @@ def read_file(filename, delooped = False, incorrect_occurrences = False):
 
     column_to_eval = 'Page_List'
 
-    if delooped:
+    if use_delooped_journeys:
         print("got here")
         column_to_eval = 'Page_List_NL'
 
@@ -65,12 +66,12 @@ def generate_subpaths(user_journey_df, page_list, subpaths):
     user_journey_df[subpaths] = user_journey_df[page_list].map(prep.subpaths_from_list)
 
 
-def edgelist_from_subpaths(user_journey_df, delooped=False):
+def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
     """
     Generate a counter that represents the edge list. Keys are edges (node pairs) which represent a user going from
     first element of pair to second one), values are a sum of journey occurrences (de-looped occurrences since current
     computation is based on de-looped subpaths), ie number of times a user/agent went from one page (node) to another.
-    :param delooped:
+    :param use_delooped_journeys:
     :param user_journey_df: user journey dataframe
     :return: edgelist counter
     """
@@ -79,7 +80,7 @@ def edgelist_from_subpaths(user_journey_df, delooped=False):
     page_list_default = 'Page_List'
     page_sequence_default = 'PageSequence'
 
-    if delooped:
+    if use_delooped_journeys:
         logger.debug("Creating edge list from de-looped journeys (based on Subpaths_NL) ...")
         subpath_default = 'Subpaths_NL'
         occurrences_default = 'Occurrences_NL'
@@ -97,14 +98,14 @@ def edgelist_from_subpaths(user_journey_df, delooped=False):
     edgelist_counter = Counter()
 
     node_id = {}
-    id = 0
+    num_id = 0
     for i, row in user_journey_df.iterrows():
         for edge in row[subpath_default]:
             edgelist_counter[tuple(edge)] += row[occurrences_default]
             for node in edge:
                 if node not in node_id.keys():
-                    node_id[node] = id
-                    id += 1
+                    node_id[node] = num_id
+                    num_id += 1
     return edgelist_counter, node_id
 
 
@@ -121,15 +122,16 @@ def nodes_from_edgelist(edgelist):
     return sorted(list(node_list))
 
 
-def write_node_edge_files(source_filename, dest_filename, delooped, incorrect):
+def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys, drop_incorrect_occ):
     """
     Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
-    :param delooped:
+    :param drop_incorrect_occ:
+    :param use_delooped_journeys:
     :param source_filename: dataframe to be loaded
     :param dest_filename: filename prefix for node and edge files
     """
-    df = read_file(source_filename, delooped, incorrect)
-    edges, node_id = edgelist_from_subpaths(df, delooped)
+    df = read_file(source_filename, use_delooped_journeys, drop_incorrect_occ)
+    edges, node_id = edgelist_from_subpaths(df, use_delooped_journeys)
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
@@ -174,7 +176,8 @@ if __name__ == "__main__":
 
     if os.path.exists(input_filename):
         logger.info("Working on file: {}".format(input_filename))
-        print(args.delooped, args.incorrect)
+        logger.info("Using de-looped journeys: {}\nDropping incorrect occurrence counts: {}".format(args.delooped,
+                                                                                                     args.incorrect))
         write_node_edge_files(input_filename, output_filename, args.delooped, args.incorrect)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
