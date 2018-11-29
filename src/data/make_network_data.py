@@ -16,23 +16,28 @@ COLUMNS_TO_KEEP = ['Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Page_List', '
                    'Occurrences_NL']
 
 
-
-def read_file(filename, delooped = False):
+def read_file(filename, delooped = False, incorrect_occurrences = False):
     """
     Read a dataframe compressed csv file, init as dataframe, drop unnecessary columns, prepare target columns
     to be evaluated as lists with literal_eval.
+    :param delooped:
+    :param incorrect_occurrences:
     :param filename: processed_journey dataframe
     :return: processed for list-eval dataframe
     """
     logger.debug("Reading file {}...".format(filename))
     df = pd.read_csv(filename, compression="gzip")
+
+    if incorrect_occurrences:
+        df.drop(['Occurrences_NL', 'Page_Seq_Occurrences'], axis=1, inplace=True)
+
     columns = set(df.columns.values)
-    df.drop(['Occurrences_NL', 'Page_Seq_Occurrences'], axis=1, inplace=True)
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
 
     column_to_eval = 'Page_List'
 
     if delooped:
+        print("got here")
         column_to_eval = 'Page_List_NL'
 
     if isinstance(df[column_to_eval].iloc[0], str) and any(["," in val for val in df[column_to_eval].values]):
@@ -116,13 +121,14 @@ def nodes_from_edgelist(edgelist):
     return sorted(list(node_list))
 
 
-def write_node_edge_files(source_filename, dest_filename, delooped):
+def write_node_edge_files(source_filename, dest_filename, delooped, incorrect):
     """
     Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
+    :param delooped:
     :param source_filename: dataframe to be loaded
     :param dest_filename: filename prefix for node and edge files
     """
-    df = read_file(source_filename)
+    df = read_file(source_filename, delooped, incorrect)
     edges, node_id = edgelist_from_subpaths(df, delooped)
     nodes = nodes_from_edgelist(edges)
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
@@ -145,9 +151,10 @@ if __name__ == "__main__":
     parser.add_argument('dest_directory', help='Specialized destination directory for output files.')
     parser.add_argument('output_filename', help='Naming convention for resulting node and edge files.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
-    # TODO: add option to choose between original and de-looped journeys (to compute edges)
     parser.add_argument('-d', '--delooped', action='store_true', default=False,
                         help='Use delooped journeys for edge and weight computation')
+    parser.add_argument('-i', '--incorrect', action='store_true', default=False,
+                        help='Drop incorrect occurrences if necessary')
 
     args = parser.parse_args()
 
@@ -167,6 +174,7 @@ if __name__ == "__main__":
 
     if os.path.exists(input_filename):
         logger.info("Working on file: {}".format(input_filename))
-        write_node_edge_files(input_filename, output_filename, args.delooped)
+        print(args.delooped, args.incorrect)
+        write_node_edge_files(input_filename, output_filename, args.delooped, args.incorrect)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
