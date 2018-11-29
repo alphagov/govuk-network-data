@@ -135,14 +135,14 @@ def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys,
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
     with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
-        file.write("Source_node,Source_id,Destination_Node,Destination_id,Weight\n".encode())
+        file.write("Source_node\tSource_id\tDestination_Node\tDestination_id\tWeight\n".encode())
         for key, value in edges.items():
-            file.write("{},{},{},{},{}\n".format(key[0], node_id[key[0]], key[1], node_id[key[1]], value).encode())
+            file.write("{}\t{}\t{}\t{}\t{}\n".format(key[0], node_id[key[0]], key[1], node_id[key[1]], value).encode())
     logger.info("Writing node list to file...")
     with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
-        file.write("Node,Node_id\n".encode())
+        file.write("Node\tNode_id\n".encode())
         for node in nodes:
-            file.write("{},{}\n".format(node, node_id[node]).encode())
+            file.write("{}\t{}\n".format(node, node_id[node]).encode())
 
 
 if __name__ == "__main__":
