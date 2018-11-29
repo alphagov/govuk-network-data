@@ -36,12 +36,9 @@ def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False):
     df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
 
     column_to_eval = 'Page_List'
-    drop_dupes = 'PageSequence'
+
     if use_delooped_journeys:
         column_to_eval = 'Page_List_NL'
-        drop_dupes = 'Page_Seq_NL'
-
-    df.drop_duplicates(drop_dupes, keep="first", inplace=True)
 
     if isinstance(df[column_to_eval].iloc[0], str) and any(["," in val for val in df[column_to_eval].values]):
         logger.debug("Working on literal_eval for \"{}\"".format(column_to_eval))
@@ -95,6 +92,9 @@ def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
     if occurrences_default not in user_journey_df.columns:
         compute_occurrences(user_journey_df, page_sequence_default, occurrences_default)
 
+    logger.debug("Dropping duplicates {}...".format(page_sequence_default))
+    user_journey_df.drop_duplicates(page_sequence_default, keep="first", inplace=True)
+
     generate_subpaths(user_journey_df, page_list_default, subpath_default)
     edgelist_counter = Counter()
 
@@ -137,7 +137,7 @@ def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys,
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
     with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
-        file.write("Source_node\tSource_id\tDestination_Node\tDestination_id\tWeight\n".encode())
+        file.write("Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n".encode())
         for key, value in edges.items():
             file.write("{}\t{}\t{}\t{}\t{}\n".format(key[0], node_id[key[0]], key[1], node_id[key[1]], value).encode())
     logger.info("Writing node list to file...")
