@@ -100,6 +100,7 @@ def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
 
     node_id = {}
     num_id = 0
+
     for i, row in user_journey_df.iterrows():
         for edge in row[subpath_default]:
             edgelist_counter[tuple(edge)] += row[occurrences_default]
@@ -108,6 +109,20 @@ def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
                     node_id[node] = num_id
                     num_id += 1
     return edgelist_counter, node_id
+
+
+def compute_node_attr(user_journey_df):
+    """
+    Generate a node list (from edges). Internally represented as a set, returned as alphabetically sorted list
+    :param edgelist: list of edges (node-pairs)
+    :return: sorted list of nodes
+    """
+    node_taxon_dict = {}
+    for tup in user_journey_df.itertuples():
+        for page,taxons in tup.Taxon_Page_List:
+            if page not in node_taxon_dict.keys():
+                node_taxon_dict[page] = taxons
+    return node_taxon_dict
 
 
 def nodes_from_edgelist(edgelist):
@@ -123,7 +138,7 @@ def nodes_from_edgelist(edgelist):
     return sorted(list(node_list))
 
 
-def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys, drop_incorrect_occ):
+def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys, drop_incorrect_occ, with_attr):
     """
     Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
     :param drop_incorrect_occ:
@@ -134,6 +149,13 @@ def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys,
     df = read_file(source_filename, use_delooped_journeys, drop_incorrect_occ)
     edges, node_id = edgelist_from_subpaths(df, use_delooped_journeys)
     nodes = nodes_from_edgelist(edges)
+    default_edge_header = "Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n"
+    default_node_header = "Node\tNode_id\n"
+    if with_attr:
+        node_attr = compute_node_attr(df)
+        default_edge_header = "Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n"
+        default_node_header = "Node\tNode_id\n"
+
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
     with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
@@ -145,6 +167,14 @@ def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys,
         file.write("Node\tNode_id\n".encode())
         for node in nodes:
             file.write("{}\t{}\n".format(node, node_id[node]).encode())
+
+
+def writer(filename, header, string_format,graph_list, node_id, node_attr=None):
+    with gzip.open(filename, "w") as file:
+        file.write(header.encode())
+        for element in graph_list:
+            file.write("{}\t{}\n".format(element, node_id[element]).encode())
+    return None
 
 
 if __name__ == "__main__":
