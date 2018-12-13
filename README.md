@@ -159,7 +159,7 @@ Here's some definitions of the columns in the resulting dataframe:
 
 # Converting processed_journey data to functional network data
 
-This creates two compressed csvs, one containing edges (and their weights = occurrences) and the other nodes.
+This creates two compressed csvs with tab-seperation (as some page urls have commas in), one containing edges (and their weights = occurrences) and the other nodes.
 These can be converted into many graph file formats or be read into graph processing software directly.
 
 - Run `python src/data/make_network_data.py -h` to list required positional arguments:  
@@ -169,21 +169,42 @@ These can be converted into many graph file formats or be read into graph proces
   - __output_filename__ - Naming convention for resulting node and edge files.
 
 - Other optional arguments:
-  - __-q, --quiet__ -Turn off debugging logging.  
+  -   -h, --help        show this help message and exit
+  -   -q, --quiet       Turn off debugging logging.
+  -   -d, --delooped    Use delooped journeys for edge and weight computation
+  -   -i, --incorrect   Drop incorrect occurrences if necessary
+  -   -t, --taxon       Compute and include additional node attributes (only taxon
+                    for now).
+  
 
 You need to create a destination directory for the node and edge files:  
-`mkdir data/network_data`
+`mkdir data/processed_network`
   
 Here's an example of a command execution:  
-`python src/data/make_network_data.py processed_journey processed_filename network_data network_filename`
+`python src/data/make_network_data.py processed_journey processed_filename processed_network network_filename -d -i -t`
 
-where processed_journey is the directory containing output from make_dataset, test_output is 
-test_output.csv.gz, network_data is the directory that the node and edge files will be exported to 
-and test is the prefix for the node and edge filenames.
+where processed_journey is the directory containing output from make_dataset, processed_filename is 
+processed_filename.csv.gz, processed_network is the directory that the node and edge files will be exported to 
+and network_filename is the prefix for the node and edge filenames.
 
 ## Using the network data
 
 The two dataframes for nodes and edges represent the minimal way to produce a network in a [tidy fashion](https://www.data-imaginist.com/2017/introducing-tidygraph/). 
+
+### Python
+
+One option is to use python for the exploration of the data. You can read each csv.gz in with:
+
+```python
+import pandas as pd
+
+nodes = pd.read_csv('../data/processed_network/network_filename_nodes.csv.gz', sep='\t')
+```
+
+This is explored further in some of the notebooks, where we use provide a tutorial with `networkx`.  
+
+### Docker
+
 Given the size of the data (if over more than a few days) you might consider building a graph database to speed up 
 your analysis (the nodes and edges csv format is also amenable to standard network science tools).  
 
