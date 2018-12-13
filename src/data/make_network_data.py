@@ -14,6 +14,7 @@ import preprocess as prep
 
 COLUMNS_TO_KEEP = ['Page_List', 'Page_List_NL', 'PageSequence', 'Page_Seq_NL', 'Occurrences', 'Page_Seq_Occurrences',
                    'Occurrences_NL']
+TAXON_ATTRIBUTES = ['Taxon_Page_List']
 
 
 def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False):
@@ -111,15 +112,15 @@ def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
     return edgelist_counter, node_id
 
 
-def compute_node_attr(user_journey_df):
+def compute_node_attribute(user_journey_df):
     """
-    Generate a node list (from edges). Internally represented as a set, returned as alphabetically sorted list
-    :param edgelist: list of edges (node-pairs)
-    :return: sorted list of nodes
+
+    :param user_journey_df:
+    :return:
     """
     node_taxon_dict = {}
     for tup in user_journey_df.itertuples():
-        for page,taxons in tup.Taxon_Page_List:
+        for page, taxons in tup.Taxon_Page_List:
             if page not in node_taxon_dict.keys():
                 node_taxon_dict[page] = taxons
     return node_taxon_dict
@@ -149,32 +150,52 @@ def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys,
     df = read_file(source_filename, use_delooped_journeys, drop_incorrect_occ)
     edges, node_id = edgelist_from_subpaths(df, use_delooped_journeys)
     nodes = nodes_from_edgelist(edges)
+
     default_edge_header = "Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n"
     default_node_header = "Node\tNode_id\n"
+    default_string_format_edges = "{}\t{}\t{}\t{}\t{}\n"
+    default_string_format_nodes = "{}\t{}\n"
+    node_attr = None
+
     if with_attr:
-        node_attr = compute_node_attr(df)
+        node_attr = compute_node_attribute(df)
         default_edge_header = "Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n"
         default_node_header = "Node\tNode_id\n"
+        default_string_format_edges = "{}\t{}\t{}\t{}\t{}\t{}\t{}\n"
+        default_string_format_nodes = "{}\t{}\t{}\n"
 
     logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
     logger.info("Writing edge list to file...")
-    with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
-        file.write("Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n".encode())
-        for key, value in edges.items():
-            file.write("{}\t{}\t{}\t{}\t{}\n".format(key[0], node_id[key[0]], key[1], node_id[key[1]], value).encode())
-    logger.info("Writing node list to file...")
-    with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
-        file.write("Node\tNode_id\n".encode())
-        for node in nodes:
-            file.write("{}\t{}\n".format(node, node_id[node]).encode())
+
+    writer(dest_filename + "_edges.csv.gz", default_edge_header, default_string_format_edges, edges, node_id, node_attr)
+    writer(dest_filename + "_nodes.csv.gz", default_node_header, default_string_format_nodes, nodes, node_id, node_attr)
+
+    # with gzip.open(dest_filename + "_edges.csv.gz", "w") as file:
+    #     file.write("Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n".encode())
+    #     for key, value in edges.items():
+    #         file.write("{}\t{}\t{}\t{}\t{}\n".format(key[0], node_id[key[0]], key[1], node_id[key[1]], value).encode())
+    # logger.info("Writing node list to file...")
+    # with gzip.open(dest_filename + "_nodes.csv.gz", "w") as file:
+    #     file.write("Node\tNode_id\n".encode())
+    #     for node in nodes:
+    #         file.write("{}\t{}\n".format(node, node_id[node]).encode())
 
 
-def writer(filename, header, string_format,graph_list, node_id, node_attr=None):
+def writer(filename, header, string_format, item_list, node_id, node_attr):
     with gzip.open(filename, "w") as file:
+        print(filename)
         file.write(header.encode())
-        for element in graph_list:
-            file.write("{}\t{}\n".format(element, node_id[element]).encode())
-    return None
+        if isinstance(item_list, dict):
+            print("this is a dict", filename)
+            item_list = item_list.items()
+            print(type(item_list))
+
+        for item in item_list:
+            if isinstance(item_list, "dict_items"):
+                file.write(string_format.format(item[0][0], node_id[item[0][0]], item[0][1], node_id[item[0][1]],
+                                                item[1]).encode())
+            elif isinstance(item_list, list):
+                file.write(string_format.format(item, node_id[item]).encode())
 
 
 if __name__ == "__main__":
@@ -209,6 +230,6 @@ if __name__ == "__main__":
         logger.info("Working on file: {}".format(input_filename))
         logger.info("Using de-looped journeys: {}\nDropping incorrect occurrence counts: {}".format(args.delooped,
                                                                                                     args.incorrect))
-        write_node_edge_files(input_filename, output_filename, args.delooped, args.incorrect)
+        write_node_edge_files(input_filename, output_filename, args.delooped, args.incorrect, False)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
