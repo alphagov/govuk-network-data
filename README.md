@@ -169,11 +169,11 @@ These can be converted into many graph file formats or be read into graph proces
   - __output_filename__ - Naming convention for resulting node and edge files.
 
 - Other optional arguments:
-  -   -h, --help        show this help message and exit
-  -   -q, --quiet       Turn off debugging logging.
-  -   -d, --delooped    Use delooped journeys for edge and weight computation
-  -   -i, --incorrect   Drop incorrect occurrences if necessary
-  -   -t, --taxon       Compute and include additional node attributes (only taxon
+  - __-h, --help__      show this help message and exit
+  - __-q, --quiet__     Turn off debugging logging.
+  - __-d, --delooped__  Use delooped journeys for edge and weight computation
+  - __-i, --incorrect__ Drop incorrect occurrences if necessary
+  - __-t, --taxon__     Compute and include additional node attributes (only taxon
                     for now).
   
 
