@@ -64,6 +64,36 @@ def derive_new_variables(df):
 
     df['more_desktop'] = np.where(df['desktop'] > (df['mobile'] + df['other_device']), 1, 0)
 
+    print("creating final_page_type")
+
+    df['final_page_type'] = 'other'
+    df.loc[df['final_page'].str.contains('/government/publications/'), 'final_page_type'] = 'government_publication'
+    df.loc[df['final_page'].str.contains('log-in'), 'final_page_type'] = 'login'
+    df.loc[df['final_page'].str.contains('sign-in'), 'final_page_type'] = 'login'
+    df.loc[df['final_page'].str.contains('login'), 'final_page_type'] = 'login'
+    df.loc[df['final_page'].str.contains('check'), 'final_page_type'] = 'check'
+    df.loc[df['final_page'].str.contains('apply'), 'final_page_type'] = 'apply'
+    df.loc[df['final_page'].str.contains('contact'), 'final_page_type'] = 'contact/enquiries'
+    df.loc[df['final_page'].str.contains('enquiries'), 'final_page_type'] = 'contact/enquiries'
+    df.loc[df['final_page'].str.contains(r'get-.*-information.*'), 'final_page_type'] = 'get_information'
+    df.loc[df['final_page'].str.contains('send'), 'final_page_type'] = 'send'
+    df.loc[df['final_page'].str.contains('find'), 'final_page_type'] = 'find'
+    df.loc[df['final_page'].str.contains('calculat'), 'final_page_type'] = 'calculate/calculator'
+    df.loc[df['final_page'].str.contains('order'), 'final_page_type'] = 'order'
+    df.loc[df['final_page'].str.contains('manage'), 'final_page_type'] = 'manage'
+    df.loc[df['final_page'].str.contains('update'), 'final_page_type'] = 'update'
+    df.loc[df['final_page'].str.contains('eligibility'), 'final_page_type'] = 'eligibility'
+    df.loc[df['final_page'].str.contains('estimate'), 'final_page_type'] = 'estimate'
+    df.loc[df['final_page'].str.contains('renew'), 'final_page_type'] = 'renew'
+    df.loc[df['final_page'].str.contains('pay'), 'final_page_type'] = 'pay'
+    df.loc[df['final_page'].str.contains('claim'), 'final_page_type'] = 'claim'
+    df.loc[df['final_page'].str.contains('change'), 'final_page_type'] = 'change'
+
+    df['final_interaction_type'] = df.final_interaction.str.extract(r'<:<(.*)<:<', expand=False)
+    df['final_external_link'] = df.final_interaction.str.extract(r'EVENT<:<External Link Clicked<:(.*)', expand=False)
+    df['exit_to_assessed_service'] = np.where(df['final_external_link'].str.contains(r'.*service.gov.uk.*', na=False),
+                                              1, 0)
+
     return df
 
 def groupby_percent(df, groupby_var, unit_var, figsize=(10, 5)):
