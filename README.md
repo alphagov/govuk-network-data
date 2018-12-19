@@ -174,6 +174,11 @@ Here's some definitions of the columns in the resulting dataframe:
 | Page_Seq_NL | Page Seqence without self-loops  |
 | Occurrences_NL | Number of sequence occurrences without self-loops  |
 
+## Analysing this data
+
+For help getting started analysing and visualising this type of data using R or Python,
+ see our notebooks in `notebooks/eda`.
+
 # Converting processed_journey data to functional network data
 
 This creates two compressed csvs, one containing edges (and their weights = occurrences) and the other nodes.
