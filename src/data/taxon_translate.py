@@ -1,3 +1,6 @@
+import pandas as pd
+import os
+
 def recursive_parenting(df, content_id, parent_content_id, parent_list):
     """
 
@@ -28,5 +31,41 @@ def build_taxon_set(taxon_series):
     return set([content_id for taxon_list in taxon_series for content_id in taxon_list])
 
 
+def map_taxon_content_ids(nodes_list, taxon_path):
+    """
+
+    :param nodes_list:
+    :param taxon_path:
+    :return:
+    """
+
+    taxon_df = pd.read_json(taxon_path, compression="gzip")
+
+    column_list = ['content_id', 'title', 'level', 'parents', 'level1_parent']
+    taxon_level_df = pd.DataFrame(columns=column_list)
+
+    taxon_set = build_taxon_set(nodes_list)
+
+    for content_id in taxon_set:
+        if taxon_df[taxon_df.content_id == content_id].shape[0] > 0:
+            title = taxon_df[taxon_df.content_id == content_id].iloc[0].title
+            parent_list = pd.Series(recursive_parenting(taxon_df, content_id,
+                                                        taxon_df[
+                                                            taxon_df.content_id == content_id].parent_content_id.values[
+                                                            0], []))
+            current_level = len(parent_list) + 1
+            level1_par = title
+            if len(parent_list.values) > 0:
+                level1_par = parent_list.values[0][0][2]
+            taxon_level_df = pd.concat([taxon_level_df, pd.DataFrame([[content_id,
+                                                                       title,
+                                                                       current_level,
+                                                                       parent_list.values,
+                                                                       level1_par]], columns=column_list)])
+    taxon_level_df.reset_index(drop=True, inplace=True)
+    taxon_level_df.drop_duplicates(subset="content_id", keep="first", inplace=True)
+    return taxon_level_df
+
+
 if __name__ == "__main__":
-    print()
+    taxon_path = os.path.join(os.getenv("DOCUMENTS"), "taxons.json.gz")
