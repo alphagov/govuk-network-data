@@ -13,5 +13,9 @@ def recursive_parenting(df, content_id, parent_content_id, parent_list):
     return taxon_level_df
 
 
+def build_taxon_set(taxon_series):
+    return set([content_id for taxon_list in taxon_series for content_id in taxon_list])
+
+
 if __name__ == '__main__':
     print()
