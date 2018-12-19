@@ -45,6 +45,19 @@ https://stackoverflow.com/questions/42708389/how-to-set-environment-variables-in
 
 You can check they're loaded using `echo $NAME_OF_ENVIRONMENT_VARIABLE` or `printenv`.  
 
+You might notice that there are two (data directories) provided for your convenience:  
+* __DATA_DIR__ which will point to your local data dir in this project.  
+* __GDRIVE_DATADIR__ which points to our teams Google Drive data dir for this work. 
+If you have access and the necessary software ([Google File Stream](https://support.google.com/a/answer/7491144?hl=en)) 
+and permissions,
+ then you can access the data from here rather than downloading it locally to your
+  machine first.  
+  
+ Within these `data` dir are the following sub-dir:  
+ -  __raw-bq-extract__ to hold the output from extract_data.py
+- __processed_journey__ to hold the output from make_dataset.py
+- __processed_network__ to hold the output from make_functional_network_data.py
+
 ## Using pip to install necessary packages
 Then install required python packages:  
 
@@ -59,7 +72,8 @@ using `pip install` if you want more control over the process.
 ## BigQuery cost caveat
 
 You are now ready to use this package to pipe data from BigQuery through a pandas dataframe and save your output locally as 
-several compressed csv files (containing tabular data). Consider the cost of the query you intend to run and read all
+several compressed csv files (containing tabular data with tab-separation).
+ Consider the cost of the query you intend to run and read all
 community guidance beforehand.  
 
 # What this does
@@ -127,7 +141,10 @@ This processing script can also merge different inputs such as data extracts fro
 
 - Other optional arguments:
 
-  - __-doo, --drop_one_offs__ - Drop rare journeys occurring only once per input file. If merging multiple inputs, the merge will occur before the count (so that single journeys occuring in each file are aggregated before counting). Then the default behaviour is to drop in batches, approximately every 3 days to fit in memory and compute constraints.  
+  - __-doo, --drop_one_offs__ - Drop rare journeys occurring only once per input file. 
+  If merging multiple inputs, the merge will occur before the count (so that single journeys occuring in each file are
+   aggregated before counting). Then the default behaviour is to drop in batches, approximately every 3 days to fit in
+    memory and compute constraints.  
   - __-kloo, --keep_len_one_only__ -Keep ONLY journeys with length 1 ie journeys visiting only one page.  
   - __-dlo, --drop_len_one__  Drop journeys with length 1 ie journeys visiting only one page.  
   - __-f FILENAME_STUB, --filename_stub FILENAME_STUB__ -If merging multiple inputs, filename_stub is the unique prefix in their filenames which identify this group of inputs.  
@@ -156,6 +173,11 @@ Here's some definitions of the columns in the resulting dataframe:
 | Page_List_NL | Page list without self-loops  |
 | Page_Seq_NL | Page Seqence without self-loops  |
 | Occurrences_NL | Number of sequence occurrences without self-loops  |
+
+## Analysing this data
+
+For help getting started analysing and visualising this type of data using R or Python,
+ see our notebooks in `notebooks/eda`.
 
 # Converting processed_journey data to functional network data
 
