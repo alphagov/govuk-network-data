@@ -67,12 +67,12 @@ We provide you with more than the minimal number of packages you need to run the
 convenience packages for reviewing notebooks etc.  
 
 Alternatively, you can review the packages that are imported and manually install those that you think are necessary 
-using `pip install` if you want more control over the process. 
+using `pip install` if you want more control over the process (and are a confident user). 
 
 ## BigQuery cost caveat
 
 You are now ready to use this package to pipe data from BigQuery through a pandas dataframe and save your output locally as 
-several compressed csv files (containing tabular data with tab-separation).
+several compressed csv files (containing tabular data with tab-separation: tsv was necessary as the page urls can contain commas).
  Consider the cost of the query you intend to run and read all
 community guidance beforehand.  
 
@@ -112,6 +112,14 @@ Here's an example of a command execution (please consider your query carefully, 
 
 In the above example, the SQL query exists as `prelim_meta_standard_query_with_pageseq.sql` in the `$QUERIES_DIR` directory.
 
+## Which query to use?
+
+This depends on your question. `prelim_meta_standard_query_with_pageseq.sql` should be your default. It should cost about 
+the same as `standard_query` but is slightly cleaner and has some additional meta data. You'll have to 
+review the queries yourself to elucidate the precise differences. When you are more familiar you can write your own 
+custom queries. Prior to using custom queries in the pipeline you should write them with the standard BigQuery 
+Google compute tools so that you get an estimate of the cost of the query.  
+
 ## Managing expectations
 
 The test code will take awhile to run (less than 10 mins). You should use `caffeinate` or prevent your machine
@@ -149,6 +157,7 @@ This processing script can also merge different inputs such as data extracts fro
   - __-dlo, --drop_len_one__  Drop journeys with length 1 ie journeys visiting only one page.  
   - __-f FILENAME_STUB, --filename_stub FILENAME_STUB__ -If merging multiple inputs, filename_stub is the unique prefix in their filenames which identify this group of inputs.  
   - __-q, --quiet__ -Turn off debugging logging.  
+  - __-h, --help__ show the help message and exit  
   
 Here's an example of a command execution:  
 `python src/data/make_dataset.py raw_bq_extract processed_journey processed_filename -doo`
@@ -173,6 +182,7 @@ Here's some definitions of the columns in the resulting dataframe:
 | Page_List_NL | Page list without self-loops  |
 | Page_Seq_NL | Page Seqence without self-loops  |
 | Occurrences_NL | Number of sequence occurrences without self-loops  |
+| Taxon_List | List of taxons of pages |   
 
 ## Analysing this data
 
@@ -223,9 +233,9 @@ import pandas as pd
 nodes = pd.read_csv('../data/processed_network/network_filename_nodes.csv.gz', sep='\t')
 ```
 
-This is explored further in some of the notebooks, where we use provide a tutorial with `networkx`.  
+This is explored further in some of the `notebooks/network_analysis`, where we use provide a tutorial with `networkx`.  
 
-### Docker
+### Docker and Neo4j
 
 Given the size of the data (if over more than a few days) you might consider building a graph database to speed up 
 your analysis (the nodes and edges csv format is also amenable to standard network science tools).  
@@ -277,7 +287,10 @@ DETACH DELETE n
 
 ```
 
-We can now be confident loading our data in.  
+We can now be confident loading our data in. However, due to changes to the output files being 
+tab-separated files rather than comma-separated (as page urls had commas), the below code needs some modifications. 
+Specifically we need to a Cypher command to acknowledge the tsv-ness,
+ see []here for help](http://bigdatums.net/2016/12/17/load-tab-delimited-file-neo4j/). This fix has not been tested yet.   
 
 #### Nodes
 
@@ -350,7 +363,8 @@ Consult the (Neo4j)[https://neo4j.com/docs/developer-manual/current/cypher/claus
 
 ### Visualising the network
 
-People like visualisations, use Gephi or any of the plenty of suitable tools for doing this.  
+People like visualisations, use Gephi or any of the plenty of suitable tools for doing this. 
+See the `notebooks/network_analysis/networkx_tutorial_govuk` for some code to do this.    
 
 
 # Developing
@@ -383,22 +397,10 @@ or
 
 ### Testing the pipeline
 
-Some functions change panda dataframes with specific column names. To unit test these functions we included a small pickled pandas dataframe derived from the top 100 rows of a query on user journey data and metadata named 'test_page_meta_htype_2018-10-15.csv.gz'. 
+Some functions change panda dataframes with specific column names.
 
-```
-import pandas as pd
-df = pd.read_csv('test_page_meta_htype_2018-10-15.csv.gz', nrows=100, compression='gzip',
-                   error_bad_lines=False)
-
-df.to_pickle("user_journey_df.pkl")
-
-```
-This was used as input to those functions that take `user_journey_df` as a parameter.
-
-## Contributing
+# Contributing
 See `CONTRIBUTING.md`  
-
-## References
 
 ## License
 See LICENSE
