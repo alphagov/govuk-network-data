@@ -1,5 +1,8 @@
-import pandas as pd
+import argparse
 import os
+
+import pandas as pd
+
 
 def recursive_parenting(df, content_id, parent_content_id, parent_list):
     """
@@ -68,4 +71,12 @@ def map_taxon_content_ids(nodes_list, taxon_path):
 
 
 if __name__ == "__main__":
-    taxon_path = os.path.join(os.getenv("DOCUMENTS"), "taxons.json.gz")
+    parser = argparse.ArgumentParser(
+        description='Module to translate taxon content_ids in node files to names. Also recursively compute parents.')
+    parser.add_argument('taxon_dir', help='File location of taxon json.')
+    parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
+    parser.add_argument('output_filename', help='Naming convention for resulting merged dataframe file.')
+    parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
+    args = parser.parse_args()
+
+    taxon_path = os.path.join(args.taxon_dir, "taxons.json.gz")
