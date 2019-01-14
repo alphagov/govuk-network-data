@@ -34,7 +34,7 @@ def build_taxon_set(taxon_series):
     return set([content_id for taxon_list in taxon_series for content_id in taxon_list])
 
 
-def map_taxon_content_ids(nodes_list, taxon_path):
+def map_taxon_content_ids(taxon_df, nodes_df):
     """
 
     :param nodes_list:
@@ -42,12 +42,10 @@ def map_taxon_content_ids(nodes_list, taxon_path):
     :return:
     """
 
-    taxon_df = pd.read_json(taxon_path, compression="gzip")
-
     column_list = ['content_id', 'title', 'level', 'parents', 'level1_parent']
     taxon_level_df = pd.DataFrame(columns=column_list)
 
-    taxon_set = build_taxon_set(nodes_list)
+    taxon_set = build_taxon_set(nodes_df.Node_Taxon)
 
     for content_id in taxon_set:
         if taxon_df[taxon_df.content_id == content_id].shape[0] > 0:
@@ -70,13 +68,20 @@ def map_taxon_content_ids(nodes_list, taxon_path):
     return taxon_level_df
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Module to translate taxon content_ids in node files to names. Also recursively compute parents.')
+        description='Module to translate taxon content_ids in node file to names. Also recursively compute parents.')
     parser.add_argument('taxon_dir', help='File location of taxon json.')
-    parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
-    parser.add_argument('output_filename', help='Naming convention for resulting merged dataframe file.')
+    parser.add_argument('input_filename', help='Specialized destination directory for output dataframe file.')
+    parser.add_argument('output_filename', default="", help='Naming convention for resulting merged dataframe file.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
 
-    taxon_path = os.path.join(args.taxon_dir, "taxons.json.gz")
+    taxons_path = os.path.join(args.taxon_dir, "taxons.json.gz")
+    nodes_path = os.path.join("", args.input_filename)
+
+    if os.path.exists(taxons_path) and os.path.exists(nodes_path):
+        taxon_df = pd.read_json(taxons_path, compression="gzip")
+        node_df = pd.read_csv(nodes_path, sep="\t", compression="gzip")
+        map_taxon_content_ids(taxon_df, node_df)
