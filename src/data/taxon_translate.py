@@ -37,8 +37,8 @@ def build_taxon_set(taxon_series):
 def map_taxon_content_ids(taxon_df, nodes_df):
     """
 
-    :param nodes_list:
-    :param taxon_path:
+    :param taxon_df:
+    :param nodes_df:
     :return:
     """
 
@@ -68,6 +68,24 @@ def map_taxon_content_ids(taxon_df, nodes_df):
     return taxon_level_df
 
 
+def add_taxon_basepath_to_df(node_df, taxons_df):
+    """
+    
+    :param node_df:
+    :param taxons_df:
+    :return:
+    """
+    content_basepath_dict = dict(zip(taxons_df.content_id, taxons_df.base_path))
+    taxon_name_list = []
+    for tup in node_df.itertuples():
+        taxon_basepath = []
+        for taxon in tup.Node_Taxon:
+            if taxon in content_basepath_dict.keys():
+                taxon_basepath.append(content_basepath_dict[taxon])
+        taxon_name_list.append(taxon_basepath)
+    node_df['Node_Taxon_basepath'] = taxon_name_list
+    return node_df
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -82,6 +100,12 @@ if __name__ == "__main__":
     nodes_path = os.path.join("", args.input_filename)
 
     if os.path.exists(taxons_path) and os.path.exists(nodes_path):
-        taxon_df = pd.read_json(taxons_path, compression="gzip")
-        node_df = pd.read_csv(nodes_path, sep="\t", compression="gzip")
-        map_taxon_content_ids(taxon_df, node_df)
+        taxons_json_df = pd.read_json(taxons_path, compression="gzip")
+        nodes_df = pd.read_csv(nodes_path, sep="\t", compression="gzip")
+        taxon_df = map_taxon_content_ids(taxons_json_df, nodes_df)
+        nodes_df = add_taxon_basepath_to_df(nodes_df, taxon_df)
+
+        # overwrite option? should it be an option or default?
+        nodes_df.to_csv(nodes_path, sep="\t", compression="gzip", index=False)
+        # save taxon-specific dataframe
+        taxon_df.to_csv(args.output_filename, compression="gzip", index=False)
