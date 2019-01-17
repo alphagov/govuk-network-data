@@ -21,6 +21,12 @@ def count_lines(filepath):
 
 
 def read_write_file(input_path,output_path):
+    """
+
+    :param input_path:
+    :param output_path:
+    :return:
+    """
     with gzip.open(output_path, "w") as write_file:
         with gzip.open(input_path, "r") as read_file:
             df_columns = read_file.readline().decode().replace("\n", "").split("\t")
@@ -98,12 +104,12 @@ if __name__ == "__main__":
 
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
     logging.config.fileConfig(LOGGING_CONFIG)
-    logger = logging.getLogger('read_write')
+    logger = logging.getLogger('preprocess_dataset')
 
     DATA_DIR = os.getenv("DATA_DIR")
 
-    read_path = os.path.join(DATA_DIR, "output", args.in_file+".csv.gz")
-    write_path = os.path.join(DATA_DIR, "output", args.in_file.replace("merged", "preprocessed")+"2.csv.gz")
+    read_path = os.path.join(DATA_DIR, "processed_journey", args.in_file+".csv.gz")
+    write_path = os.path.join(DATA_DIR, "processed_journey", args.in_file.replace("merged", "preprocessed")+".csv.gz")
 
     other_columns = ['Page_Event_List', 'Page_List', 'Event_List', 'num_event_cats', 'Event_cats_agg',
                      'Event_cat_act_agg', 'Taxon_List', 'Taxon_Page_List', 'Page_List_NL', 'Page_Seq_NL']

@@ -16,12 +16,8 @@ sys.path.append(os.path.join(src, "features"))
 import preprocess as prep
 import build_features as feat
 
-# TODO: Integrate in the future
-# AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
-#                      'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
-#                      'Times', 'Dates', 'Time_Spent', 'userID']
-# TODO: Extend with more BigQuery fields. Pre-defined columns will be aggregated
-COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'DeviceCategory', 'TrafficSources',
+
+COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'TrafficSources',
                                'TrafficMediums', 'NetworkLocations', 'Dates']
 # Execute module for only one file
 SINGLE: bool = False
@@ -310,7 +306,7 @@ if __name__ == "__main__":
 
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
     logging.config.fileConfig(LOGGING_CONFIG)
-    logger = logging.getLogger('make_dataset')
+    logger = logging.getLogger('merge_dataset')
 
     if args.quiet:
         logging.disable(logging.DEBUG)
