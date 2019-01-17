@@ -104,7 +104,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
-    nodes_path = os.path.join(DATA_DIR, "output", args.node_filename + ".csv.gz")
+    nodes_path = os.path.join(DATA_DIR, "processed_data", args.node_filename + ".csv.gz")
     taxons_path = os.path.join(args.taxon_dir, "taxons.json.gz")
 
     if os.path.exists(taxons_path) and os.path.exists(nodes_path):
