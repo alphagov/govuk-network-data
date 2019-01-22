@@ -81,7 +81,7 @@ def read_write_file(input_path,output_path):
 
                 write_to_file += "\n"
 
-                if i % 500000 == 0:
+                if i % 1000000 == 0:
                     logging.info("At index: {}".format(i))
                     write_file.write(write_to_file.encode())
                     write_to_file = ""

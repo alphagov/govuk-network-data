@@ -215,7 +215,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Module that produces node and edge files given a user journey file.')
     parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
     parser.add_argument('input_filename', help='Source directory for input dataframe file(s).')
-    parser.add_argument('dest_directory', help='Specialized destination directory for output files.')
+    parser.add_argument('dest_directory', default="", help='Specialized destination directory for output files.')
     parser.add_argument('output_filename', help='Naming convention for resulting node and edge files.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     parser.add_argument('-d', '--delooped', action='store_true', default=False,
