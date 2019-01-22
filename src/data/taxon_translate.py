@@ -120,7 +120,7 @@ if __name__ == "__main__":
         nodes_df.to_csv(nodes_path.replace(".csv.gz", "_taxon_base_path.csv.gz"), sep="\t", compression="gzip",
                         index=False)
         # save taxon-specific dataframe
-        taxon_output_path = os.path.join(DATA_DIR, "output", args.taxon_output_filename)
+        taxon_output_path = os.path.join(DATA_DIR, "processed_data", args.taxon_output_filename)
         taxon_df.to_csv(taxon_output_path, compression="gzip", index=False)
     else:
         print("Files do not exist:\n {}: {},\n {}: {}".format(taxons_path, os.path.exists(taxons_path), nodes_path,
