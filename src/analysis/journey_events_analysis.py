@@ -59,10 +59,10 @@ def compute_percent(nums, denom):
     return (round((num * 100) / denom, 2) for num in nums)
 
 
-def compute_stats(df, df_related, df_stats):
+def compute_stats(df, df_filtered, df_stats):
     columns = ["Occurrences", "DesktopCount", "MobileCount"]
     vol_all, vol_desk, vol_mobile = compute_volumes(df, columns)
-    vol_all_related, vol_desk_rel, vol_mobile_rel = compute_volumes(df_related, columns)
+    vol_all_related, vol_desk_rel, vol_mobile_rel = compute_volumes(df_filtered, columns)
 
     percent_from_desk, percent_from_mobile = compute_percent([vol_desk, vol_mobile], vol_all)
 
@@ -114,6 +114,10 @@ def column_eval(df):
 def run(filename):
     df = pd.read_csv(filename, sep="\t", compression="gzip")
     column_eval(df)
+    # For dataframe files that include tablet devices
+    df["TabletCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "tablet"))
+    df["Occurrences"] = df["Occurrences"] - df["TabletCount"]
+    
     map_counter(df)
     df_related = split_dataframe(df)
     compute_stats(df, df_related)
