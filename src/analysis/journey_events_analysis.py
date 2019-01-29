@@ -7,8 +7,11 @@ from collections import Counter
 import pandas as pd
 from scipy import stats
 
-
-AGGREGATE_COLUMNS =  ['Page_Event_List', 'DeviceCategories', 'Event_cats_agg', 'Event_cat_act_agg']
+AGGREGATE_COLUMNS = ['Page_Event_List', 'DeviceCategories', 'Event_cats_agg', 'Event_cat_act_agg']
+NAVIGATE_EVENT_CATS = ['breadcrumbClicked',
+                       'homeLinkClicked',
+                       'searchResults']
+NAVIGATE_EVENT_CATS_ACTS = [('relatedLinkClicked','Explore')]
 
 def device_count(x, device):
     return sum([value for item, value in x if item == device])
@@ -18,8 +21,11 @@ def has_related_event(x):
     return all(cond in x for cond in ["relatedLinkClicked", "Related content"])
 
 
-def has_nav_event():
-    return False
+def has_nav_event_cat(x):
+    return any(event_cat in x for event_cat in NAVIGATE_EVENT_CATS)
+
+def has_nav_event_cat_act(x):
+    return
 
 
 def map_counter(df):
@@ -31,17 +37,6 @@ def split_dataframe(df):
     df["Has_Related"] = df["Sequence"].map(has_related_event)
     df_related = df[df["Has_Related"]]
     return df_related
-
-
-def weight_seq_length(page_lengths, occurrences, name):
-    length_occ = Counter()
-    for length, occ in zip(page_lengths, occurrences):
-        length_occ[length] += occ
-    data = []
-    for key, value in length_occ.items():
-        for i in range(value):
-            data.append(key)
-    return pd.Series(data, name=name)
 
 
 def chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel):
@@ -88,16 +83,41 @@ def compute_stats(df, df_filtered, df_stats):
                               percent_from_mobile, percent_from_mobile_rel]
     # df_stats["Shape"] = shapes
 
-    a, b, c, d = chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel)
+    a, b, c, _ = chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel)
 
     return df_stats
 
 
-def describe_dfs(to_eval):
+def weight_seq_length(page_lengths, occurrences, name):
+    length_occ = Counter()
+    for length, occ in zip(page_lengths, occurrences):
+        length_occ[length] += occ
+    data = []
+    for key, value in length_occ.items():
+        for i in range(value):
+            data.append(key)
+    return pd.Series(data, name=name)
+
+
+def describe_dfs(df, df_related):
     descriptive = pd.DataFrame()
+
+    desktop_journeys = df[df.DesktopCount > 0]
+    mobile_journeys = df[df.MobileCount > 0]
+    desk_rel_journeys = desktop_journeys[desktop_journeys.Has_Related]
+    mobile_rel_journeys = mobile_journeys[mobile_journeys.Has_Related]
+
+    to_eval = [[df.PageSeq_Length, df.Occurrences, "All_Journeys"],
+               [df_related.PageSeq_Length, df_related.Occurrences, "All_Journeys_Related"],
+               [desktop_journeys.PageSeq_Length, desktop_journeys.DesktopCount, "All_Desktop"],
+               [mobile_journeys.PageSeq_Length, mobile_journeys.MobileCount, "All_Mobile"],
+               [desk_rel_journeys.PageSeq_Length, desk_rel_journeys.DesktopCount, "Desktop_Related"],
+               [mobile_rel_journeys.PageSeq_Length, mobile_rel_journeys.MobileCount, "Mobile_Related"]]
+
     for length, occ, name in to_eval:
         sr = weight_seq_length(length, occ, name).describe().apply(lambda x: format(x, '.3f'))
         descriptive[sr.name] = sr
+
     return descriptive
 
 
@@ -117,19 +137,12 @@ def run(filename):
     # For dataframe files that include tablet devices
     df["TabletCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "tablet"))
     df["Occurrences"] = df["Occurrences"] - df["TabletCount"]
-    
+
     map_counter(df)
     df_related = split_dataframe(df)
     compute_stats(df, df_related)
 
-    list_of_cols = [[df.PageSeq_Length, df.Occurrences, "All_Journeys"],
-                    [df_related.PageSeq_Length, df_related.Occurrences, "All_Journeys_Related"],
-                    [desktop_journeys.PageSeq_Length, desktop_journeys.DesktopCount, "All_Desktop"],
-                    [mobile_journeys.PageSeq_Length, mobile_journeys.MobileCount, "All_Mobile"],
-                    [desk_rel_journeys.PageSeq_Length, desk_rel_journeys.DesktopCount, "Desktop_Related"],
-                    [mobile_rel_journeys.PageSeq_Length, mobile_rel_journeys.MobileCount, "Mobile_Related"]]
-
-    describe_dfs(list_of_cols)
+    describe_dfs(df, df_related)
 
     return None
 
