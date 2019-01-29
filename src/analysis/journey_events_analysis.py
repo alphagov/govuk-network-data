@@ -8,6 +8,8 @@ import pandas as pd
 from scipy import stats
 
 
+AGGREGATE_COLUMNS =  ['Page_Event_List', 'DeviceCategories', 'Event_cats_agg', 'Event_cat_act_agg']
+
 def device_count(x, device):
     return sum([value for item, value in x if item == device])
 
@@ -99,10 +101,10 @@ def describe_dfs(to_eval):
     return descriptive
 
 
-def column_eval(cols, df):
-    for column in cols:
-        if not isinstance(df[column].iloc[0], list):
-            print(column)
+def column_eval(df):
+    for column in AGGREGATE_COLUMNS:
+        if column in df.columns and not isinstance(df[column].iloc[0], list):
+            print("Working on column: {}".format(column))
             df[column] = df[column].map(literal_eval)
     if "PageSeq_Length" not in df.columns:
         df['Page_List'] = df['Page_List'].map(literal_eval)
@@ -111,8 +113,20 @@ def column_eval(cols, df):
 
 def run(filename):
     df = pd.read_csv(filename, sep="\t", compression="gzip")
+    column_eval(df)
+    map_counter(df)
+    df_related = split_dataframe(df)
+    compute_stats(df, df_related)
 
-    column_eval([], df)
+    list_of_cols = [[df.PageSeq_Length, df.Occurrences, "All_Journeys"],
+                    [df_related.PageSeq_Length, df_related.Occurrences, "All_Journeys_Related"],
+                    [desktop_journeys.PageSeq_Length, desktop_journeys.DesktopCount, "All_Desktop"],
+                    [mobile_journeys.PageSeq_Length, mobile_journeys.MobileCount, "All_Mobile"],
+                    [desk_rel_journeys.PageSeq_Length, desk_rel_journeys.DesktopCount, "Desktop_Related"],
+                    [mobile_rel_journeys.PageSeq_Length, mobile_rel_journeys.MobileCount, "Mobile_Related"]]
+
+    describe_dfs(list_of_cols)
+
     return None
 
 
