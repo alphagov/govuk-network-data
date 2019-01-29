@@ -7,36 +7,52 @@ from collections import Counter
 import pandas as pd
 from scipy import stats
 
-AGGREGATE_COLUMNS = ['Page_Event_List', 'DeviceCategories', 'Event_cats_agg', 'Event_cat_act_agg']
+AGGREGATE_COLUMNS = ['DeviceCategories', 'Event_cats_agg', 'Event_cat_act_agg']
+
 NAVIGATE_EVENT_CATS = ['breadcrumbClicked',
                        'homeLinkClicked',
-                       'searchResults']
-NAVIGATE_EVENT_CATS_ACTS = [('relatedLinkClicked','Explore')]
+                       '/search',
+                       'navDocumentCollectionLinkClicked',
+                       'navAccordionLinkClicked',
+                       'navLeafLinkClicked',
+                       'navPolicyAreaLinkClicked',
+                       'navServicesInformationLinkClicked',
+                       'navSubtopicContentItemLinkClicked',
+                       'navSubtopicLinkClicked',
+                       'navTopicLinkClicked',
+                       'relatedTaxonomyLinkClicked',
+                       'stepNavHeaderClicked', 'stepNavLinkClicked', 'stepNavPartOfClicked']
+
+# Useful for explicit event category and action matching, may extend in the future
+NAVIGATE_EVENT_CATS_ACTS = [('relatedLinkClicked', 'Explore the topic')]
+
 
 def device_count(x, device):
     return sum([value for item, value in x if item == device])
 
 
-def has_related_event(x):
-    return all(cond in x for cond in ["relatedLinkClicked", "Related content"])
+def has_related_event(sequence_str):
+    return all(cond in sequence_str for cond in ["relatedLinkClicked", "Related content"])
 
 
-def has_nav_event_cat(x):
-    return any(event_cat in x for event_cat in NAVIGATE_EVENT_CATS)
-
-def has_nav_event_cat_act(x):
-    return
+def has_nav_event_cat(sequence_str):
+    return any(event_cat in sequence_str for event_cat in NAVIGATE_EVENT_CATS)
 
 
-def map_counter(df):
+def has_nav_event_cat_act(sequence_str):
+    return any(
+        event_cat in sequence_str and event_act in sequence_str for event_cat, event_act in NAVIGATE_EVENT_CATS_ACTS)
+
+
+def map_device_counter(df):
+    """
+    Count the device-based occurrences per target device
+    :param df:
+    :return:
+    """
+    logging.info("Mapping device counts")
     df["DesktopCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "desktop"))
     df["MobileCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "mobile"))
-
-
-def split_dataframe(df):
-    df["Has_Related"] = df["Sequence"].map(has_related_event)
-    df_related = df[df["Has_Related"]]
-    return df_related
 
 
 def chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel):
@@ -46,34 +62,31 @@ def chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel):
     return stats.chi2_contingency(obs)
 
 
-def compute_volumes(df, columns):
-    return (df[column].sum() for column in columns)
+def compute_volumes(df, occ_cols):
+    return (df[occ].sum() for occ in occ_cols)
 
 
-def compute_percent(nums, denom):
-    return (round((num * 100) / denom, 2) for num in nums)
+def compute_percents(nums, denoms):
+    if len(nums) == len(denoms):
+        return (round((num * 100) / denom, 2) for num, denom in zip(nums, denoms))
+    return -1
 
 
-def compute_stats(df, df_filtered, df_stats):
-    columns = ["Occurrences", "DesktopCount", "MobileCount"]
-    vol_all, vol_desk, vol_mobile = compute_volumes(df, columns)
-    vol_all_related, vol_desk_rel, vol_mobile_rel = compute_volumes(df_filtered, columns)
+def compute_stats(df, df_filtered, occ_cols):
+    logger.info("Computing occurrence-based statistics...")
 
-    percent_from_desk, percent_from_mobile = compute_percent([vol_desk, vol_mobile], vol_all)
+    ind = ["All", "All_related", "Desktop", "Desktop_rel", "Mobile", "Mobile_rel"]
+    cols = ["Volume", "Percentage", "Shape"]
+    df_stats = pd.DataFrame(index=ind, columns=cols)
 
-    percent_related = round((vol_all_related * 100) / vol_all, 2)
-    percent_from_desk_rel = round((vol_desk_rel * 100) / vol_desk, 2)
-    percent_from_mobile_rel = round((vol_mobile_rel * 100) / vol_mobile, 2)
-    # shape_all = df.shape[0]
-    # shape_all_rel = df[df.Has_Related].shape[0]
-    # shape_desk = desktop_journeys.shape[0]
-    # shape_desk_rel = desktop_journeys[desktop_journeys.Has_Related].shape[0]
-    # shape_mobile = mobile_journeys.shape[0]
-    # shape_mobile_rel = mobile_journeys[mobile_journeys.Has_Related].shape[0]
-    #
-    # shapes = [shape_all, shape_all_rel,
-    #           shape_desk, shape_desk_rel,
-    #           shape_mobile, shape_mobile_rel]
+    vol_all, vol_desk, vol_mobile = compute_volumes(df, occ_cols)
+    vol_all_related, vol_desk_rel, vol_mobile_rel = compute_volumes(df_filtered, occ_cols)
+
+    percent_from_desk, percent_from_mobile = compute_percents([vol_desk, vol_mobile], 2 * [vol_all])
+
+    percent_related, percent_from_desk_rel, percent_from_mobile_rel = compute_percents(
+        [vol_all_related, vol_desk_rel, vol_mobile_rel],
+        [vol_all, vol_desk, vol_mobile])
 
     df_stats["Volume"] = [vol_all, vol_all_related,
                           vol_desk, vol_desk_rel,
@@ -81,9 +94,8 @@ def compute_stats(df, df_filtered, df_stats):
     df_stats["Percentage"] = [100, percent_related,
                               percent_from_desk, percent_from_desk_rel,
                               percent_from_mobile, percent_from_mobile_rel]
-    # df_stats["Shape"] = shapes
 
-    a, b, c, _ = chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel)
+    # a, b, c, _ = chi2_test(vol_desk, vol_mobile, vol_mobile_rel, vol_desk_rel)
 
     return df_stats
 
@@ -99,20 +111,28 @@ def weight_seq_length(page_lengths, occurrences, name):
     return pd.Series(data, name=name)
 
 
-def describe_dfs(df, df_related):
+def list_zipper(df_list, count_cols, names, col_to_describe):
+    return [[df_all[col_to_describe], df_all[count_col], name] for df_all, count_col, name in
+            zip(df_list, count_cols, names)]
+
+
+def describe_dfs(df_list_all, df_list_filtered, col_to_describe, count_cols):
+    """
+
+    :param df:
+    :param df_related:
+    :param col_to_describe:
+    :return:
+    """
+
+    logger.info("Computing statistics for {}".format(col_to_describe))
     descriptive = pd.DataFrame()
+    names_all = ["All_" + name for name in ["Journeys", "Desktop", "Mobile"]]
+    names_rel = [name + "_Related" for name in ["Journeys", "Desktop", "Mobile"]]
 
-    desktop_journeys = df[df.DesktopCount > 0]
-    mobile_journeys = df[df.MobileCount > 0]
-    desk_rel_journeys = desktop_journeys[desktop_journeys.Has_Related]
-    mobile_rel_journeys = mobile_journeys[mobile_journeys.Has_Related]
-
-    to_eval = [[df.PageSeq_Length, df.Occurrences, "All_Journeys"],
-               [df_related.PageSeq_Length, df_related.Occurrences, "All_Journeys_Related"],
-               [desktop_journeys.PageSeq_Length, desktop_journeys.DesktopCount, "All_Desktop"],
-               [mobile_journeys.PageSeq_Length, mobile_journeys.MobileCount, "All_Mobile"],
-               [desk_rel_journeys.PageSeq_Length, desk_rel_journeys.DesktopCount, "Desktop_Related"],
-               [mobile_rel_journeys.PageSeq_Length, mobile_rel_journeys.MobileCount, "Mobile_Related"]]
+    to_eval = list_zipper(df_list_all, count_cols, names_all, col_to_describe) + list_zipper(df_list_filtered,
+                                                                                             count_cols,
+                                                                                             names_rel, col_to_describe)
 
     for length, occ, name in to_eval:
         sr = weight_seq_length(length, occ, name).describe().apply(lambda x: format(x, '.3f'))
@@ -122,29 +142,60 @@ def describe_dfs(df, df_related):
 
 
 def column_eval(df):
+    """
+    Evaluate speficied columns as lists instead of strings. Compute Page_List lengths, if missing.
+    :param df:
+    :return: void, inplace
+    """
+    logger.info("Literal eval...")
     for column in AGGREGATE_COLUMNS:
         if column in df.columns and not isinstance(df[column].iloc[0], list):
             print("Working on column: {}".format(column))
             df[column] = df[column].map(literal_eval)
     if "PageSeq_Length" not in df.columns:
+        logger.info("Computing PageSeq_Length...")
         df['Page_List'] = df['Page_List'].map(literal_eval)
         df['PageSeq_Length'] = df['Page_List'].map(len)
 
 
-def run(filename):
+def run(df, reports_dest, filtering):
+    # Journeys per device
+    desktop_journeys = df[df.DesktopCount > 0]
+    mobile_journeys = df[df.MobileCount > 0]
+
+    # Related journeys, all/per device
+    df_related = df[df["Has_Related"]]
+    desk_rel_journeys = desktop_journeys[desktop_journeys["Has_Related"]]
+    mobile_rel_journeys = mobile_journeys[mobile_journeys["Has_Related"]]
+
+    occurrence_cols = ["Occurrences", "DesktopCount", "MobileCount"]
+
+    df_stats = compute_stats(df, df_related, occurrence_cols)
+    df_stats['Shape'] = [df.shape[0], df_related.shape[0], desktop_journeys.shape[0], desk_rel_journeys.shape[0],
+                         mobile_journeys.shape[0], mobile_rel_journeys.shape[0]]
+
+    descriptive_df = describe_dfs([df, desktop_journeys, mobile_journeys],
+                                  [df_related, desk_rel_journeys, mobile_rel_journeys],
+                                  "PageSeq_Length", occurrence_cols)
+
+    df_stats.to_csv(os.path.join(reports_dest, filtering + "device_rel_stats.csv"))
+    descriptive_df.to_csv(os.path.join(reports_dest, filtering + "PageSeq_Length" + "_describe.csv"))
+
+
+def initialize(filename, reports_dest, filtering):
     df = pd.read_csv(filename, sep="\t", compression="gzip")
     column_eval(df)
     # For dataframe files that include tablet devices
     df["TabletCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "tablet"))
     df["Occurrences"] = df["Occurrences"] - df["TabletCount"]
 
-    map_counter(df)
-    df_related = split_dataframe(df)
-    compute_stats(df, df_related)
+    map_device_counter(df)
 
-    describe_dfs(df, df_related)
+    df["Has_Related"] = df["Sequence"].map(has_related_event)
 
-    return None
+    run(df, reports_dest, "")
+    if filtering:
+        run(df[df.PageSeq_Length > 1], reports_dest, "dlo_")
 
 
 if __name__ == "__main__":
@@ -182,6 +233,7 @@ if __name__ == "__main__":
             logging.info(
                 "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
             os.mkdir(dest_directory)
+            initialize(input_file, dest_directory, True)
         else:
             logging.info(
                 "Specified destination directory \"{}\" exists, adding \'v2\' to results...".format(dest_directory))
