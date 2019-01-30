@@ -189,6 +189,13 @@ Here's some definitions of the columns in the resulting dataframe:
 For help getting started analysing and visualising this type of data using R or Python,
  see our notebooks in `notebooks/eda`.
 
+# Analysing journey events
+
+For a reproducible analytical pipeline approach, you can pass a processed_journey file to `journey_events_analysis.py`.
+  It creates a dir with the name of said `processed_filename` in reports and then puts 2 csvs in there.  
+ 
+`python src/analysis/journey_events_analysis.py processed_filename`
+
 # Converting processed_journey data to functional network data
 
 This creates two compressed csvs with tab-seperation (as some page urls have commas in), one containing edges (and their weights = occurrences) and the other nodes.
@@ -290,7 +297,7 @@ DETACH DELETE n
 We can now be confident loading our data in. However, due to changes to the output files being 
 tab-separated files rather than comma-separated (as page urls had commas), the below code needs some modifications. 
 Specifically we need to a Cypher command to acknowledge the tsv-ness,
- see []here for help](http://bigdatums.net/2016/12/17/load-tab-delimited-file-neo4j/). This fix has not been tested yet.   
+ see [here for help](http://bigdatums.net/2016/12/17/load-tab-delimited-file-neo4j/). This fix has not been tested yet.   
 
 #### Nodes
 
@@ -359,7 +366,7 @@ LIMIT 500;
 
 ```
 
-Consult the (Neo4j)[https://neo4j.com/docs/developer-manual/current/cypher/clauses/] manual for further guidance.
+Consult the [Neo4j](https://neo4j.com/docs/developer-manual/current/cypher/clauses/) manual for further guidance.
 
 ### Visualising the network
 

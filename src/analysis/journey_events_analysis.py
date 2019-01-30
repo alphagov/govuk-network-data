@@ -46,7 +46,9 @@ def has_nav_event_cat_act(sequence_str):
 
 def map_device_counter(df):
     """
-    Count the device-based occurrences per target device
+    Count the device-based occurrences per target device and add as new cols.
+
+    Tablet is ignored as it is assumed to have been filtered.
     :param df:
     :return:
     """
@@ -143,7 +145,7 @@ def describe_dfs(df_list_all, df_list_filtered, col_to_describe, count_cols):
 
 def column_eval(df):
     """
-    Evaluate speficied columns as lists instead of strings. Compute Page_List lengths, if missing.
+    Change type of specified columns from str to list. Compute Page_List lengths, if missing.
     :param df:
     :return: void, inplace
     """
