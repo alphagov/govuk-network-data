@@ -158,7 +158,17 @@ def column_eval(df):
         df['PageSeq_Length'] = df['Page_List'].map(len)
 
 
-def run(df, reports_dest, filtering):
+def initialize(filename, reports_dest):
+    df = pd.read_csv(filename, sep="\t", compression="gzip")
+    column_eval(df)
+    # For dataframe files that include tablet devices
+    df["TabletCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "tablet"))
+    df["Occurrences"] = df["Occurrences"] - df["TabletCount"]
+
+    map_device_counter(df)
+
+    df["Has_Related"] = df["Sequence"].map(has_related_event)
+
     # Journeys per device
     desktop_journeys = df[df.DesktopCount > 0]
     mobile_journeys = df[df.MobileCount > 0]
@@ -178,40 +188,15 @@ def run(df, reports_dest, filtering):
                                   [df_related, desk_rel_journeys, mobile_rel_journeys],
                                   "PageSeq_Length", occurrence_cols)
 
-    df_stats.to_csv(os.path.join(reports_dest, filtering + "device_rel_stats.csv"))
-    descriptive_df.to_csv(os.path.join(reports_dest, filtering + "PageSeq_Length" + "_describe.csv"))
-
-
-def initialize(filename, reports_dest, filtering):
-    df = pd.read_csv(filename, sep="\t", compression="gzip")
-    column_eval(df)
-    # For dataframe files that include tablet devices
-    df["TabletCount"] = df['DeviceCategories'].map(lambda x: device_count(x, "tablet"))
-    df["Occurrences"] = df["Occurrences"] - df["TabletCount"]
-
-    map_device_counter(df)
-
-    df["Has_Related"] = df["Sequence"].map(has_related_event)
-
-    run(df, reports_dest, "")
-    if filtering:
-        run(df[df.PageSeq_Length > 1], reports_dest, "dlo_")
+    df_stats.to_csv(os.path.join(reports_dest,  "device_rel_stats.csv"))
+    descriptive_df.to_csv(os.path.join(reports_dest,  "PageSeq_Length" + "_describe.csv"))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Module to run analysis on user journeys in terms of a specific'
                                                  'event(s). For now focusing on \'Related content\' links. Reads'
                                                  'in data from the \'processed_journey\' directory.')
-    # parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
-    # parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
     parser.add_argument('input_filename', help='Source user journey file to analyse.')
-    parser.add_argument('-doo', '--drop_one_offs', action='store_true',
-                        help='Drop journeys occurring only once (on a daily basis, '
-                             'or over approximately 3 day periods).')
-    parser.add_argument('-kloo', '--keep_len_one_only', action='store_true',
-                        help='Keep ONLY journeys with length 1 ie journeys visiting only one page.')
-    parser.add_argument('-dlo', '--drop_len_one', action='store_true',
-                        help='Drop journeys with length 1 ie journeys visiting only one page.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
 
@@ -233,7 +218,7 @@ if __name__ == "__main__":
             logging.info(
                 "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
             os.mkdir(dest_directory)
-            initialize(input_file, dest_directory, True)
+            initialize(input_file, dest_directory)
         else:
             logging.info(
                 "Specified destination directory \"{}\" exists, adding \'v2\' to results...".format(dest_directory))
