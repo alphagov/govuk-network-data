@@ -93,9 +93,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='BigQuery extractor module')
     parser.add_argument('start_date', help='Start date in Y-m-d, eg 2018-12-31')
     parser.add_argument('end_date', help='End date in Y-m-d, eg 2018-12-31')
-    parser.add_argument('dest_dir', help='Specialized destination directory for resulting dataframe file(s).')
     parser.add_argument('filename', help='Naming convention for resulting dataframe file(s).')
     parser.add_argument('query', help='Name of query to use, within queries directory.')
+    parser.add_argument('dest_dir', default="", nargs="?",
+                        help='Specialized destination directory for resulting dataframe file(s).')
     parser.add_argument('--standard', action='store_true', default=False,
                         help='Specify BigQuery dialect. Legacy default.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     # Logger setup
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
     logging.config.fileConfig(LOGGING_CONFIG)
-    logger = logging.getLogger('extract')
+    logger = logging.getLogger('bq_extract')
 
     if args.quiet:
         logging.disable(logging.DEBUG)
@@ -119,7 +120,7 @@ if __name__ == "__main__":
     # DATA DIRECTORIES
     QUERIES_DIR = os.getenv("QUERIES_DIR")
     DATA_DIR = os.getenv("DATA_DIR")
-    dest_dir = os.path.join(DATA_DIR, args.dest_dir)
+    dest_dir = os.path.join(DATA_DIR, args.dest_dir if args.dest_dir != "" else "raw_bq_extract")
 
     # DATAFRAME FILENAME(S)
     filename = args.filename

@@ -16,12 +16,7 @@ sys.path.append(os.path.join(src, "features"))
 import preprocess as prep
 import build_features as feat
 
-# TODO: Integrate in the future
-# AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories',
-#                      'TrafficSources', 'TrafficMediums', 'NetworkLocations', 'sessionID',
-#                      'Times', 'Dates', 'Time_Spent', 'userID']
-# TODO: Extend with more BigQuery fields. Pre-defined columns will be aggregated
-COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'DeviceCategory', 'TrafficSources',
+COUNTABLE_AGGREGATE_COLUMNS = ['Languages', 'Locations', 'DeviceCategories', 'TrafficSources',
                                'TrafficMediums', 'NetworkLocations', 'Dates']
 # Execute module for only one file
 SINGLE: bool = False
@@ -150,28 +145,27 @@ def agg_dict(agg_from_dict, row_dict):
     return agg_from_dict
 
 
-def aggregate(dataframe):
+def aggregate_metadata(dataframe):
     metadata_counter = {}
     for agg in dataframe.columns:
         if agg in COUNTABLE_AGGREGATE_COLUMNS:
-            logging.info("Agg {}".format(agg))
+            logging.info("Setting up aggregate dictionary {}".format(agg))
             metadata_counter[agg] = {}
 
     logging.info("Starting iteration...")
-    for i, row in dataframe.iterrows():
-        for agg in metadata_counter.keys():
-            if row['Sequence'] in metadata_counter[agg].keys():
-                metadata_counter[agg][row['Sequence']] = agg_dict(metadata_counter[agg][row['Sequence']],
-                                                                  str_to_dict(row[agg]))
+    for agg in metadata_counter.keys():
+        logging.info("Aggregating: {}".format(agg))
+        for row in zip(dataframe['Sequence'], dataframe[agg]):
+            if row[0] in metadata_counter[agg].keys():
+                metadata_counter[agg][row[0]] = agg_dict(metadata_counter[agg][row[0]],
+                                                         str_to_dict(row[1]))
             else:
-                metadata_counter[agg][row['Sequence']] = str_to_dict(row[agg])
+                metadata_counter[agg][row[0]] = str_to_dict(row[1])
 
-        if i % 500000 == 0:
-            logging.debug("At index: {}".format(i))
     return metadata_counter
 
 
-def preprocess(dataframe):
+def preprocess_dataframe(dataframe):
     """
 
     :param dataframe:
@@ -184,7 +178,7 @@ def preprocess(dataframe):
 
     if multiple:
         logging.info("Working on multiple merged dataframes")
-        metadata_counter = aggregate(dataframe)
+        metadata_counter = aggregate_metadata(dataframe)
     else:
         logging.info("Working on a single dataframe")
         for agg in dataframe.columns:
@@ -193,7 +187,7 @@ def preprocess(dataframe):
                 logging.info("Agg {}".format(agg))
                 dataframe[agg] = dataframe[agg].map(lambda x: list(str_to_dict(x).items()))
 
-    logging.info("Occurrences...")
+    logging.info("Computing sequence occurrences...")
     dataframe['Occurrences'] = dataframe.groupby('Sequence')['Occurrences'].transform('sum')
 
     if multiple:
@@ -228,12 +222,24 @@ def initialize_make(files: list, destination: str, merged_filename: str):
 
     df = pd.concat([read_file(file) for file in files], ignore_index=True)
 
-    preprocess(df)
+    preprocess_dataframe(df)
 
     logging.debug(df.iloc[0])
 
-    logging.debug("Saving merged dataframe...")
     path_to_file = os.path.join(destination, "merged_" + merged_filename)
+
+    # if df.shape[0] < 5000000:
+    #     logger.info("Attempting to preprocess at this step: {}".format(df.shape[0]))
+    #     sequence_preprocess(df)
+    #     event_preprocess(df)
+    #     taxon_preprocess(df)
+    #     add_loop_columns(df)
+    #     logger.debug("Dataframe columns: {}".format(df.columns))
+    #     logger.debug("Shape: {}".format(df.shape))
+    #     logger.info("Example final row:\n{}".format(df.iloc[0]))
+    #     path_to_file = os.path.join(destination, "preprocessed_" + merged_filename)
+
+    logging.debug("Saving merged dataframe...")
     logger.info("Saving at: {}".format(path_to_file))
     df.to_csv(path_to_file, sep="\t", compression='gzip', index=False)
 
@@ -251,10 +257,12 @@ def read_file(filename):
     df.dropna(subset=['Sequence'], inplace=True)
     # logging.info("post {}".format(df.shape))
     # print(df.shape)
+
     # Drop journeys of length 1
     if DROP_ONES:
         logging.debug("Dropping ones...")
         df.query("PageSeq_Length > 1", inplace=True)
+
     # Keep ONLY journeys of length 1
     elif KEEP_ONES:
         logging.debug("Keeping only ones...")
@@ -282,14 +290,35 @@ def generate_file_list(source_dir, stub):
         return file_list
 
 
+def build_filename(file_list):
+    """
+
+    :param file_list:
+    :return:
+    """
+    file_name = "_".join(file_list[0].split("/")[-1].split("_")[0:-1])
+    date_list = ["".join(file.split("_")[-1].replace(".csv.gz", "").split("-")) for file in
+                 [file_list[0], file_list[-1]]]
+    if DROP_ONES:
+        file_name += ("_dlo")
+    if KEEP_ONES:
+        file_name += ("_klo")
+    if DROP_ONE_OFFS:
+        file_name += ("_doo")
+
+    return file_name + "_" + "_".join(date_list)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Module that produces a merged, metadata-aggregated and '
                                                  'preprocessed dataset (.csv.gz), given a source directory '
                                                  'containing raw BigQuery extract dataset(s). Merging is '
                                                  'skipped if only one file is provided.')
-    parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
-    parser.add_argument('dest_directory', help='Specialized destination directory for output dataframe file.')
-    parser.add_argument('output_filename', help='Naming convention for resulting merged dataframe file.')
+    parser.add_argument('output_filename', default="", nargs="?",
+                        help='Naming convention for resulting merged dataframe file.')
+    parser.add_argument('source_directory', default="", nargs="?", help='Source directory for input dataframe file(s).')
+    parser.add_argument('dest_directory', default="", nargs="?",
+                        help='Specialized destination directory for output dataframe file.')
     parser.add_argument('-doo', '--drop_one_offs', action='store_true',
                         help='Drop journeys occurring only once (on a daily basis, '
                              'or over approximately 3 day periods).')
@@ -303,14 +332,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
-    source_directory = os.path.join(DATA_DIR, args.source_directory)
-    dest_directory = os.path.join(DATA_DIR, args.dest_directory)
-    final_filename = args.output_filename
+    source_directory = os.path.join(DATA_DIR,
+                                    args.source_directory if args.source_directory != "" else "raw_bq_extract")
+    dest_directory = os.path.join(DATA_DIR, args.dest_directory if args.dest_directory != "" else "processed_journey")
+    # final_filename = args.output_filename
     filename_stub = args.filename_stub
 
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
     logging.config.fileConfig(LOGGING_CONFIG)
-    logger = logging.getLogger('make_dataset')
+    logger = logging.getLogger('merge_dataset')
 
     if args.quiet:
         logging.disable(logging.DEBUG)
@@ -328,6 +358,7 @@ if __name__ == "__main__":
         logger.info("Loading data...")
 
         to_load = generate_file_list(source_directory, filename_stub)
+
         if len(to_load) > 0:
 
             if not os.path.isdir(dest_directory):
@@ -335,6 +366,8 @@ if __name__ == "__main__":
                     "Specified destination directory \"{}\" does not exist, creating...".format(dest_directory))
                 os.mkdir(dest_directory)
 
+            final_filename = build_filename(to_load)
+            logger.debug("Produced output filename: {}".format(final_filename))
             initialize_make(to_load, dest_directory, final_filename + ".csv.gz")
         else:
             logging.info(

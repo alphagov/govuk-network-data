@@ -4,42 +4,43 @@ import os
 import pandas as pd
 
 
-def recursive_parenting(df, content_id, parent_content_id, parent_list):
+def recursive_parenting(taxon_df, content_id, parent_content_id, parent_list):
     """
-
-    :param df:
-    :param content_id:
-    :param parent_content_id:
-    :param parent_list:
-    :return:
+    Recursively compute a taxon's parents
+    :param taxon_df: taxon dataframe from content tagger (taxon json file)
+    :param content_id: target taxon content_id
+    :param parent_content_id: target taxon's parent content_id
+    :param parent_list: incrementing list of parents
+    :return: recursive call, aggregated list of parents if top level
     """
     if isinstance(parent_content_id, float) and len(parent_list) == 0:
         return []
     elif isinstance(parent_content_id, float):
-        return [[thing, i + 1] for i, thing in enumerate(reversed(parent_list))]
+        return [[parent_taxon, i + 1] for i, parent_taxon in enumerate(reversed(parent_list))]
     else:
         content_id = parent_content_id
-        parent_content_id = df[df.content_id == parent_content_id].iloc[0].parent_content_id
-        title = df[df.content_id == content_id].iloc[0].title
+        parent_content_id = taxon_df[taxon_df.content_id == parent_content_id].iloc[0].parent_content_id
+        title = taxon_df[taxon_df.content_id == content_id].iloc[0].title
         parent_list.append([content_id, parent_content_id, title])
-        return recursive_parenting(df, content_id, parent_content_id, parent_list)
+        return recursive_parenting(taxon_df, content_id, parent_content_id, parent_list)
 
 
 def build_taxon_set(taxon_series):
     """
-
-    :param taxon_series:
-    :return:
+    Build set of unique taxons from the input taxon Series induced from the network node dataframe.
+    :param taxon_series: Taxon column from the network node df, list of taxon content_id lists.
+    :return: unique set containing taxon content_ids from nodes
     """
     return set([content_id for taxon_list in taxon_series for content_id in taxon_list])
 
 
-def map_taxon_content_ids(taxon_df, nodes_df):
+def map_taxon_content_ids(target_taxon_df, nodes_df):
     """
-
-    :param taxon_df:
-    :param nodes_df:
-    :return:
+    Extract taxons from node dataframe as a unique set of taxon content_ids and then compute their title, base_path
+    (main component to be returned), level, parents (if any, else NaN) and finally the top-most parent.
+    :param target_taxon_df: taxon dataframe from content tagger (taxon json file)
+    :param nodes_df: dataframe with network nodes
+    :return: dataframe containing taxon information
     """
 
     column_list = ['content_id', 'title', 'base_path', 'level', 'parents', 'level1_parent']
@@ -48,12 +49,12 @@ def map_taxon_content_ids(taxon_df, nodes_df):
     taxon_set = build_taxon_set(nodes_df.Node_Taxon)
 
     for content_id in taxon_set:
-        if taxon_df[taxon_df.content_id == content_id].shape[0] > 0:
-            title = taxon_df[taxon_df.content_id == content_id].iloc[0].title
-            base_path = taxon_df[taxon_df.content_id == content_id].iloc[0].base_path
-            parent_list = pd.Series(recursive_parenting(taxon_df, content_id,
-                                                        taxon_df[
-                                                            taxon_df.content_id == content_id].parent_content_id.values[
+        if target_taxon_df[target_taxon_df.content_id == content_id].shape[0] > 0:
+            title = target_taxon_df[target_taxon_df.content_id == content_id].iloc[0].title
+            base_path = target_taxon_df[target_taxon_df.content_id == content_id].iloc[0].base_path
+            parent_list = pd.Series(recursive_parenting(target_taxon_df, content_id,
+                                                        target_taxon_df[
+                                                            target_taxon_df.content_id == content_id].parent_content_id.values[
                                                             0], []))
             current_level = len(parent_list) + 1
             level1_par = title
@@ -70,14 +71,14 @@ def map_taxon_content_ids(taxon_df, nodes_df):
     return taxon_level_df
 
 
-def add_taxon_basepath_to_df(node_df, taxons_df):
+def add_taxon_basepath_to_df(node_df, taxon_level_df):
     """
-
-    :param node_df:
-    :param taxons_df:
-    :return:
+    Compute appropriate taxon base_paths for list of taxon content_ids and add to node dataframe.
+    :param node_df: dataframe with network nodes
+    :param taxon_level_df: dataframe containing taxon information (taxons nodes are tagged with)
+    :return: augmented node dataframe, including taxon base_paths
     """
-    content_basepath_dict = dict(zip(taxons_df.content_id, taxons_df.base_path))
+    content_basepath_dict = dict(zip(taxon_level_df.content_id, taxon_level_df.base_path))
     taxon_name_list = []
     for tup in node_df.itertuples():
         taxon_basepath = []
@@ -91,16 +92,19 @@ def add_taxon_basepath_to_df(node_df, taxons_df):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Module to translate taxon content_ids in node file to names. Also recursively compute parents.')
-    parser.add_argument('node_filename', help='Specialized destination directory for output dataframe file.')
-    parser.add_argument('taxon_dir', help='File location of taxon json.')
+        description='Module to translate taxon content_ids in node file to taxon base paths. In addition, ecursively '
+                    'compute taxon'
+                    'level, parents and top-most parents.')
+    parser.add_argument('node_filename', help='Node input filename.')
+    parser.add_argument('taxon_dir', help='Directory containing taxon json file.')
     parser.add_argument('taxon_output_filename', default="",
-                        help='Naming convention for resulting merged dataframe file.')
+                        help='Naming convention for resulting taxon dataframe file. Includes taxons that nodes in node '
+                             'file are tagged to.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
-    nodes_path = os.path.join(DATA_DIR, "output", args.node_filename + ".csv.gz")
+    nodes_path = os.path.join(DATA_DIR, "processed_data", args.node_filename + ".csv.gz")
     taxons_path = os.path.join(args.taxon_dir, "taxons.json.gz")
 
     if os.path.exists(taxons_path) and os.path.exists(nodes_path):
@@ -116,7 +120,8 @@ if __name__ == "__main__":
         nodes_df.to_csv(nodes_path.replace(".csv.gz", "_taxon_base_path.csv.gz"), sep="\t", compression="gzip",
                         index=False)
         # save taxon-specific dataframe
-        taxon_output_path = os.path.join(DATA_DIR, "output", args.taxon_output_filename)
+        taxon_output_path = os.path.join(DATA_DIR, "processed_data", args.taxon_output_filename)
         taxon_df.to_csv(taxon_output_path, compression="gzip", index=False)
     else:
-        print("files do not exist {} {}, {} {}".format(taxons_path,os.path.exists(taxons_path),nodes_path,os.path.exists(nodes_path)))
+        print("Files do not exist:\n {}: {},\n {}: {}".format(taxons_path, os.path.exists(taxons_path), nodes_path,
+                                                              os.path.exists(nodes_path)))
