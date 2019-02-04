@@ -228,16 +228,6 @@ def initialize_make(files: list, destination: str, merged_filename: str):
 
     path_to_file = os.path.join(destination, "merged_" + merged_filename)
 
-    # if df.shape[0] < 5000000:
-    #     logger.info("Attempting to preprocess at this step: {}".format(df.shape[0]))
-    #     sequence_preprocess(df)
-    #     event_preprocess(df)
-    #     taxon_preprocess(df)
-    #     add_loop_columns(df)
-    #     logger.debug("Dataframe columns: {}".format(df.columns))
-    #     logger.debug("Shape: {}".format(df.shape))
-    #     logger.info("Example final row:\n{}".format(df.iloc[0]))
-    #     path_to_file = os.path.join(destination, "preprocessed_" + merged_filename)
 
     logging.debug("Saving merged dataframe...")
     logger.info("Saving at: {}".format(path_to_file))
