@@ -41,7 +41,6 @@ FROM (
           hits.customDimensions
         WHERE
           index=59) AS taxon,
-        date AS Date,
         device.deviceCategory AS DeviceCategory
       FROM
         `govuk-bigquery-analytics.87773428.ga_sessions_TIME_STAMP` AS sessions
