@@ -19,14 +19,10 @@ FROM (
           pagePath,
           NULL),">>") OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS PageSequence,
       DeviceCategory,
-      Date,
       COUNT(*) OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS Actions_Length,
       SUM(IF(htype='PAGE',
           1,
-          0)) OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS PageSeq_Length,
-      SUM(IF(eventAction='ffYesClick',
-          1,
-          0)) OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS EventYes
+          0)) OVER (PARTITION BY fullVisitorId, visitId ORDER BY hitNumber ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) AS PageSeq_Length
     FROM (
       SELECT
         fullVisitorId,
@@ -59,8 +55,6 @@ WHERE
     Sequence,
     PageSequence,
     DeviceCategory,
-    Date,
-    EventYes,
     Actions_Length,
     PageSeq_Length)
 GROUP BY
