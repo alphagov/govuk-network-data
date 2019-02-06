@@ -18,7 +18,7 @@ NODE_ATTRIBUTES = ['Taxon_Page_List']
 OCCURRENCES = ['Occurrences_NL', 'Page_Seq_Occurrences']
 
 
-def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False, with_attribute=False):
+def read_file(filename, columns_to_read, use_delooped_journeys=False, drop_incorrect_occ=False, with_attribute=False):
     """
     Read a dataframe compressed csv file, init as dataframe, drop unnecessary columns, prepare target columns
     to be evaluated as lists with literal_eval.
@@ -29,21 +29,26 @@ def read_file(filename, use_delooped_journeys=False, drop_incorrect_occ=False, w
     :return: processed for list-eval dataframe
     """
     logger.debug("Reading file {}...".format(filename))
-    df = pd.read_csv(filename, sep='\t', compression="gzip")
+    df = pd.read_csv(filename, sep='\t', compression="gzip", skipinitialspace=True, usecols=columns_to_read)
+    logger.debug("Read in {} columns...".format(df.columns))
 
     if drop_incorrect_occ and all(col in df.columns for col in OCCURRENCES):
         logger.debug("Dropping incorrect occurrence counts...")
         df.drop(['Occurrences_NL', 'Page_Seq_Occurrences'], axis=1, inplace=True)
 
-    columns = set(df.columns.values)
+    print(df.shape)
+    print(df[df.Occurrences == 1].shape)
+    indices = df[df.Occurrences == 1].sample(frac=0.3, random_state=1234).index
+    print(len(indices))
+    df.drop(indices, inplace=True)
+    print(df.shape)
+
+    logger.debug("Number of rows post one-off occurrence drop: {}".format(df.shape))
 
     if with_attribute:
         for attribute_column in NODE_ATTRIBUTES:
             logger.debug("Working on literal_eval for \"{}\"".format(attribute_column))
             df[attribute_column] = df[attribute_column].map(literal_eval)
-        COLUMNS_TO_KEEP.extend(NODE_ATTRIBUTES)
-
-    df.drop(list(columns - set(COLUMNS_TO_KEEP)), axis=1, inplace=True)
 
     column_to_eval = 'Page_List'
 
@@ -149,7 +154,8 @@ def nodes_from_edgelist(edgelist):
     return sorted(list(node_list))
 
 
-def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys, drop_incorrect_occ, with_attribute):
+def write_node_edge_files(cols, source_filename, dest_filename, use_delooped_journeys, drop_incorrect_occ,
+                          with_attribute):
     """
     Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
     :param with_attribute:
@@ -158,7 +164,7 @@ def write_node_edge_files(source_filename, dest_filename, use_delooped_journeys,
     :param source_filename: dataframe to be loaded
     :param dest_filename: filename prefix for node and edge files
     """
-    df = read_file(source_filename, use_delooped_journeys, drop_incorrect_occ, with_attribute)
+    df = read_file(source_filename, cols, use_delooped_journeys, drop_incorrect_occ, with_attribute)
     edges, node_id = edgelist_from_subpaths(df, use_delooped_journeys)
     nodes = nodes_from_edgelist(edges)
 
@@ -201,11 +207,18 @@ def edge_writer(filename, header, edges, node_id, node_attr):
             file.write("\n".encode())
 
 
+def check_header(filename):
+    with gzip.open(filename, "rb") as reader:
+        header = set(reader.readline().decode().replace("\n", "").split("\t"))
+    return list(header.intersection(set(COLUMNS_TO_KEEP + NODE_ATTRIBUTES)))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Module that produces node and edge files given a user journey file.')
-    parser.add_argument('source_directory', help='Source directory for input dataframe file(s).')
+    parser.add_argument('source_directory', default="", nargs="?", help='Source directory for input dataframe file(s).')
     parser.add_argument('input_filename', help='Source directory for input dataframe file(s).')
-    parser.add_argument('dest_directory', default="", help='Specialized destination directory for output files.')
+    parser.add_argument('dest_directory', default="", nargs="?",
+                        help='Specialized destination directory for output files.')
     parser.add_argument('output_filename', help='Naming convention for resulting node and edge files.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
     parser.add_argument('-d', '--delooped', action='store_true', default=False,
@@ -218,10 +231,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     DATA_DIR = os.getenv("DATA_DIR")
-    source_directory = os.path.join(DATA_DIR, args.source_directory)
+    source_directory = os.path.join(DATA_DIR,
+                                    args.source_directory if args.source_directory != "" else "processed_journey")
     input_filename = os.path.join(source_directory, (
         args.input_filename + ".csv.gz" if "csv.gz" not in args.input_filename else args.input_filename))
-    dest_directory = os.path.join(DATA_DIR, args.dest_directory)
+    dest_directory = os.path.join(DATA_DIR, args.dest_directory if args.dest_directory != "" else "processed_network")
 
     output_filename = os.path.join(dest_directory, args.output_filename)
     LOGGING_CONFIG = os.getenv("LOGGING_CONFIG")
@@ -235,6 +249,7 @@ if __name__ == "__main__":
         logger.info("Working on file: {}".format(input_filename))
         logger.info("Using de-looped journeys: {}\nDropping incorrect occurrence counts: {}".format(args.delooped,
                                                                                                     args.incorrect))
-        write_node_edge_files(input_filename, output_filename, args.delooped, args.incorrect, args.taxon)
+        cols = check_header(input_filename)
+        write_node_edge_files(cols, input_filename, output_filename, args.delooped, args.incorrect, args.taxon)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
