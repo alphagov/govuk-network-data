@@ -79,8 +79,7 @@ def looped_query(query_from_file, date_range, exclude_dates, project_id, key_pat
             if df_in is not None:
                 file_name = os.path.join(destination_dir, filename_stub + "_" + str(date) + '.csv.gz')
                 logger.info("Saving at: {}".format(file_name))
-                df_in.to_csv(file_name, compression='gzip',
-                             index=False)
+                df_in.to_csv(file_name, compression='gzip', index=False, sep="\t")
                 logger.info("Saved to file.")
             else:
                 logger.error("Nothing to save, query failed.")

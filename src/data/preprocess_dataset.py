@@ -1,15 +1,17 @@
+import argparse
 import gzip
 import logging.config
 import os
 import sys
-
-import argparse
 
 src = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(src, "data"))
 sys.path.append(os.path.join(src, "features"))
 import preprocess as prep
 import build_features as feat
+
+OTHER_COLUMNS = ['Page_Event_List', 'Page_List', 'Event_List', 'num_event_cats', 'Event_cats_agg',
+                 'Event_cat_act_agg', 'Taxon_List', 'Taxon_Page_List', 'Page_List_NL', 'Page_Seq_NL']
 
 
 def count_lines(filepath):
@@ -20,7 +22,7 @@ def count_lines(filepath):
     return index
 
 
-def read_write_file(input_path,output_path):
+def read_write_file(input_path, output_path, number_lines):
     """
 
     :param input_path:
@@ -32,10 +34,10 @@ def read_write_file(input_path,output_path):
             df_columns = read_file.readline().decode().replace("\n", "").split("\t")
             print(df_columns)
             if 'PageSequence' not in df_columns:
-                other_columns.insert(2, 'PageSequence')
+                OTHER_COLUMNS.insert(2, 'PageSequence')
             sequence_index = df_columns.index("Sequence")
             logging.info("Write headers...")
-            all_cols = df_columns + other_columns
+            all_cols = df_columns + OTHER_COLUMNS
             print(all_cols)
             write_to_file = "\t".join(all_cols) + "\n"
             logging.info("Iteration...")
@@ -81,13 +83,13 @@ def read_write_file(input_path,output_path):
 
                 write_to_file += "\n"
 
-                if i % 1000000 == 0:
+                if i % 500000 == 0:
                     logging.info("At index: {}".format(i))
                     write_file.write(write_to_file.encode())
                     write_to_file = ""
                     write_file.flush()
 
-                if i == num_lines - 1 and write_to_file != "":
+                if i == number_lines - 1 and write_to_file != "":
                     logging.info("At index via last: {}".format(i))
                     write_file.write(write_to_file.encode())
                     write_to_file = ""
@@ -108,17 +110,14 @@ if __name__ == "__main__":
 
     DATA_DIR = os.getenv("DATA_DIR")
 
-    read_path = os.path.join(DATA_DIR, "processed_journey", args.in_file+".csv.gz")
-    write_path = os.path.join(DATA_DIR, "processed_journey", args.in_file.replace("merged", "preprocessed")+".csv.gz")
-
-    other_columns = ['Page_Event_List', 'Page_List', 'Event_List', 'num_event_cats', 'Event_cats_agg',
-                     'Event_cat_act_agg', 'Taxon_List', 'Taxon_Page_List', 'Page_List_NL', 'Page_Seq_NL']
+    read_path = os.path.join(DATA_DIR, "processed_journey", args.in_file + ".csv.gz")
+    write_path = os.path.join(DATA_DIR, "processed_journey", args.in_file.replace("merged", "preprocessed") + ".csv.gz")
 
     if os.path.isfile(read_path):
         logging.info("Reading from \"{}\" and writing to \"{}\"...".format(read_path, write_path))
         num_lines = count_lines(read_path)
         logging.info("Number of rows in dataframe: {}".format(num_lines))
         logging.info("Reading, processing, writing file...")
-        read_write_file(read_path, write_path)
+        read_write_file(read_path, write_path, num_lines)
     else:
         logging.error("Input file \"{}\" does not exist.".format(read_path))
