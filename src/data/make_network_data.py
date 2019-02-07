@@ -18,7 +18,8 @@ NODE_ATTRIBUTES = ['Taxon_Page_List']
 OCCURRENCES = ['Occurrences_NL', 'Page_Seq_Occurrences']
 
 
-def read_file(filename, columns_to_read, use_delooped_journeys=False, drop_incorrect_occ=False, with_attribute=False):
+def read_file(filename, columns_to_read, collapse_search=False, use_delooped_journeys=False,
+              drop_incorrect_occ=False, with_attribute=False):
     """
     Read a dataframe compressed csv file, init as dataframe, drop unnecessary columns, prepare target columns
     to be evaluated as lists with literal_eval.
@@ -38,6 +39,7 @@ def read_file(filename, columns_to_read, use_delooped_journeys=False, drop_incor
 
     print(df.shape)
     print(df[df.Occurrences == 1].shape)
+    # Sample 30% of one-off journeys and then use these indices to drop them
     indices = df[df.Occurrences == 1].sample(frac=0.3, random_state=1234).index
     print(len(indices))
     df.drop(indices, inplace=True)
@@ -58,7 +60,16 @@ def read_file(filename, columns_to_read, use_delooped_journeys=False, drop_incor
     if isinstance(df[column_to_eval].iloc[0], str) and any(["," in val for val in df[column_to_eval].values]):
         logger.debug("Working on literal_eval for \"{}\"".format(column_to_eval))
         df[column_to_eval] = df[column_to_eval].map(literal_eval)
+
+    if collapse_search:
+        logger.debug("Collapsing /search nodes in \"{}\"".format(column_to_eval))
+        df[column_to_eval] = df[column_to_eval].map(collapse_search_page)
+
     return df
+
+
+def collapse_search_page(page_list):
+    return [page for page in page_list if "/search?" not in page]
 
 
 def compute_occurrences(user_journey_df, page_sequence, occurrences):
@@ -113,17 +124,14 @@ def edgelist_from_subpaths(user_journey_df, use_delooped_journeys=False):
     generate_subpaths(user_journey_df, page_list_default, subpath_default)
     edgelist_counter = Counter()
 
-    node_id = {}
-    num_id = 0
+    ind_path = user_journey_df.columns.get_loc(subpath_default)
+    ind_occ = user_journey_df.columns.get_loc(occurrences_default)
 
-    for i, row in user_journey_df.iterrows():
-        for edge in row[subpath_default]:
-            edgelist_counter[tuple(edge)] += row[occurrences_default]
-            for node in edge:
-                if node not in node_id.keys():
-                    node_id[node] = num_id
-                    num_id += 1
-    return edgelist_counter, node_id
+    for tup in user_journey_df.itertuples(index=False):
+        for edge in tup[ind_path]:
+            edgelist_counter[tuple(edge)] += tup[ind_occ]
+
+    return edgelist_counter
 
 
 def compute_node_attribute(user_journey_df):
@@ -148,25 +156,34 @@ def nodes_from_edgelist(edgelist):
     :return: sorted list of nodes
     """
     logger.debug("Creating node list...")
-    node_list = set()
-    for key, _ in edgelist.items():
-        node_list.update(key)
-    return sorted(list(node_list))
+    nid = 0
+    node_list = {}
+
+    for keys, _ in edgelist.items():
+        for key in keys:
+            if key not in node_list.keys():
+                node_list[key] = nid
+                nid += 1
+    return node_list
 
 
-def write_node_edge_files(cols, source_filename, dest_filename, use_delooped_journeys, drop_incorrect_occ,
-                          with_attribute):
+def compute_nodes_edges(source_filename, dest_filename, cols, collapse_search, use_delooped_journeys,
+                        drop_incorrect_occ,
+                        with_attribute):
     """
     Read processed_journey dataframe file, preprocess, compute node/edge lists, write contents of lists to file.
+    :param collapse_search:
     :param with_attribute:
     :param drop_incorrect_occ:
     :param use_delooped_journeys:
     :param source_filename: dataframe to be loaded
     :param dest_filename: filename prefix for node and edge files
     """
-    df = read_file(source_filename, cols, use_delooped_journeys, drop_incorrect_occ, with_attribute)
-    edges, node_id = edgelist_from_subpaths(df, use_delooped_journeys)
-    nodes = nodes_from_edgelist(edges)
+    df = read_file(source_filename, cols, collapse_search, use_delooped_journeys, drop_incorrect_occ, with_attribute)
+    edges = edgelist_from_subpaths(df, use_delooped_journeys)
+    node_list = nodes_from_edgelist(edges)
+
+    print(list(node_list.items())[0:10])
 
     default_edge_header = "Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\n"
     default_node_header = "Node\tNode_id\n"
@@ -178,19 +195,19 @@ def write_node_edge_files(cols, source_filename, dest_filename, use_delooped_jou
         default_edge_header = "Source_node\tSource_id\tDestination_node\tDestination_id\tWeight\tSource_Taxon\tDestination_Taxon\n"
         default_node_header = "Node\tNode_id\tNode_Taxon\n"
 
-    logger.info("Number of nodes: {} Number of edges: {}".format(len(nodes), len(edges)))
+    logger.info("Number of nodes: {} Number of edges: {}".format(len(node_list), len(edges)))
     logger.info("Writing edge list to file...")
 
-    edge_writer(dest_filename + "_edges.csv.gz", default_edge_header, edges, node_id, node_attr)
-    node_writer(dest_filename + "_nodes.csv.gz", default_node_header, nodes, node_id, node_attr)
+    edge_writer(dest_filename + "_edges.csv.gz", default_edge_header, edges, node_list, node_attr)
+    node_writer(dest_filename + "_nodes.csv.gz", default_node_header, node_list, node_attr)
 
 
-def node_writer(filename, header, nodes, node_id, node_attr):
+def node_writer(filename, header, node_id, node_attr):
     with gzip.open(filename, "w") as file:
         print(filename)
         file.write(header.encode())
-        for node in nodes:
-            file.write("{}\t{}".format(node, node_id[node]).encode())
+        for node, nid in node_id.items():
+            file.write("{}\t{}".format(node, nid).encode())
             if node_attr is not None:
                 file.write("\t{}".format(node_attr[node]).encode())
             file.write("\n".encode())
@@ -227,6 +244,10 @@ if __name__ == "__main__":
                         help='Drop incorrect occurrences if necessary')
     parser.add_argument('-t', '--taxon', action='store_true', default=False,
                         help='Compute and include additional node attributes (only taxon for now).')
+    parser.add_argument('-cs', '--collapse_search', action='store_true', default=False,
+                        help='Remove /search? page hits.')
+    parser.add_argument('-s', '--sampling', action='store_true', default=False,
+                        help='Remove /search? page hits.')
 
     args = parser.parse_args()
 
@@ -250,6 +271,7 @@ if __name__ == "__main__":
         logger.info("Using de-looped journeys: {}\nDropping incorrect occurrence counts: {}".format(args.delooped,
                                                                                                     args.incorrect))
         cols = check_header(input_filename)
-        write_node_edge_files(cols, input_filename, output_filename, args.delooped, args.incorrect, args.taxon)
+        compute_nodes_edges(input_filename, output_filename, cols, args.collapse_search, args.delooped, args.incorrect,
+                            args.taxon)
     else:
         logger.debug("Specified filename does not exist: {}".format(input_filename))
