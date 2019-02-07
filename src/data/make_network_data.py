@@ -2,6 +2,7 @@ import argparse
 import gzip
 import logging.config
 import os
+import re
 import sys
 from ast import literal_eval
 from collections import Counter
@@ -69,7 +70,7 @@ def read_file(filename, columns_to_read, collapse_search=False, use_delooped_jou
 
 
 def collapse_search_page(page_list):
-    return [page for page in page_list if "/search?" not in page]
+    return [page for page in page_list if not (re.match(r"^/search[//?|/]\D*$", page) or page == "/search")]
 
 
 def compute_occurrences(user_journey_df, page_sequence, occurrences):
