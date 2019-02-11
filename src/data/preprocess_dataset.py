@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
     DATA_DIR = os.getenv("DATA_DIR")
 
-    read_path = os.path.join(DATA_DIR, "processed_journey", args.in_file+".csv.gz")
+    read_path = os.path.join(DATA_DIR, "raw_bq_extract", args.in_file+".csv.gz")
     write_path = os.path.join(DATA_DIR, "processed_journey", args.in_file.replace("merged", "preprocessed")+".csv.gz")
 
     other_columns = ['Page_Event_List', 'Page_List', 'Event_List', 'num_event_cats', 'Event_cats_agg',
