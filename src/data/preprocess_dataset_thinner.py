@@ -10,8 +10,11 @@ sys.path.append(os.path.join(src, "features"))
 import preprocess as prep
 import build_features as feat
 
-OTHER_COLUMNS = ['Page_Event_List', 'Page_List', 'Event_List', 'num_event_cats', 'Event_cats_agg',
-                 'Event_cat_act_agg', 'Taxon_List', 'Taxon_Page_List', 'Page_List_NL', 'Page_Seq_NL']
+OTHER_COLUMNS = ['Page_Event_List', 'Page_List',
+                 # 'Event_List', 'num_event_cats', 'Event_cats_agg',
+                 'Event_cat_act_agg',
+                 # 'Taxon_List', 'Taxon_Page_List', 'Page_List_NL', 'Page_Seq_NL'
+                 ]
 
 
 def count_lines(filepath):
@@ -67,19 +70,21 @@ def read_write_file(input_path, output_path, number_lines):
 
                 # Writing events columns
                 event_list = prep.extract_pe_components(page_event_list, 1)
-                write_to_file += "\"" + str(event_list) + "\"" + "\t"
-                write_to_file += "\"" + str(feat.count_event_cat(event_list)) + "\"" + "\t"
-                write_to_file += "\"" + str(feat.aggregate_event_cat(event_list)) + "\"" + "\t"
+                # write_to_file += "\"" + str(event_list) + "\"" + "\t"
+                # write_to_file += "\"" + str(feat.count_event_cat(event_list)) + "\"" + "\t"
+                # write_to_file += "\"" + str(feat.aggregate_event_cat(event_list)) + "\"" + "\t"
+
+                # Event_cat_act_agg
                 write_to_file += "\"" + str(feat.aggregate_event_cat_act(event_list)) + "\"" + "\t"
 
-                # Writing taxon_list
-                write_to_file += "\"" + str(prep.extract_cd_components(page_event_list, 2)) + "\"" + "\t"
-                write_to_file += "\"" + str(prep.extract_pcd_list(page_event_list, 2)) + "\"" + "\t"
+                # # Writing taxon_list
+                # write_to_file += "\"" + str(prep.extract_cd_components(page_event_list, 2)) + "\"" + "\t"
+                # write_to_file += "\"" + str(prep.extract_pcd_list(page_event_list, 2)) + "\"" + "\t"
 
-                # Writing loop column stuff
-                de_looped = prep.collapse_loop(page_list)
-                write_to_file += "\"" + str(de_looped) + "\"" + "\t"
-                write_to_file += "\"" + ">>".join(de_looped) + "\""
+                # # Writing loop column stuff
+                # de_looped = prep.collapse_loop(page_list)
+                # write_to_file += "\"" + str(de_looped) + "\"" + "\t"
+                # write_to_file += "\"" + ">>".join(de_looped) + "\""
 
                 write_to_file += "\n"
 
@@ -111,7 +116,9 @@ if __name__ == "__main__":
     DATA_DIR = os.getenv("DATA_DIR")
 
     read_path = os.path.join(DATA_DIR, "raw_bq_extract", args.in_file+".csv.gz")
-    write_path = os.path.join(DATA_DIR, "processed_journey", args.in_file.replace("merged", "preprocessed")+".csv.gz")
+    write_path = os.path.join(
+        DATA_DIR, "processed_journey",
+        args.in_file.replace("merged", "preprocessed")+"_thinner.csv.gz")
 
     if os.path.isfile(read_path):
         logging.info("Reading from \"{}\" and writing to \"{}\"...".format(read_path, write_path))

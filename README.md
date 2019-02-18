@@ -94,13 +94,33 @@ This produces a compressed csv in the destination directory (raw_bq_extract) whe
   (see next section: 'Converting raw big query data to processed_journey data').
 
 - Run `python src/data/bq_extract_data.py --help` to list required positional arguments:  
-  - __start_date__ - Start date in Y-m-d, eg 2018-12-31
-  - __end_date__ - End date in Y-m-d, eg 2018-12-31
-  - __dest_dir__ - Specialized destination directory for resulting dataframe
-              file(s).
-  - __filename__ - Naming convention for resulting dataframe file(s).
-  - __query__ - Name of query to use, within queries directory.
-- Other optional arguments:
+
+```
+positional arguments:
+  start_date            Start date in Y-m-d, eg 2018-12-31
+  end_date              End date in Y-m-d, eg 2018-12-31
+  filename              Naming convention for resulting dataframe file(s).
+  query                 Name of query to use, within queries directory
+                        (specified by environment variable QUERIES_DIR). The
+                        first file in query_dir that contains a match for
+                        query string is used, this is based on alphabetical
+                        order.
+  dest_dir              Specialized destination directory for resulting
+                        dataframe file(s). (default: )
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --standard            Specify BigQuery dialect. Legacy default. (default:
+                        False)
+  -q, --quiet           Turn off debugging logging. (default: False)
+  --ab_test_prefix AB_TEST_PREFIX
+                        For use with the stnd_taxon_ab query, prefix of the
+                        value in the AB test custom dimension, the bit before
+                        the colon, not including it, for example, if you care
+                        about values 'RelatedLinksAATest:A' and
+                        'RelatedLinksAATest:B', pass 'RelatedLinksAATest'
+                        through this arg. (default: None)
+```
   - The default SQL dialect is legacy so specify `--standard` if needed. 
   - Set verbosity as quiet `--quiet` to reduce logging output.
 
@@ -108,7 +128,7 @@ First, save your sql query 'query_name.sql' in the `$QUERIES_DIR` directory.
 
 Here's an example of a command execution (please consider your query carefully, as this is not free!): 
 
-`python src/data/bq_extract_data.py 2018-10-18 2018-10-18 raw_bq_extract raw_output_filename prelim_meta_standard_query_with_pageseq --standard`  
+`python src/data/bq_extract_data.py 2018-10-18 2018-10-18 raw_output_filename prelim_meta_standard_query_with_pageseq raw_bq_extract --standard`
 
 In the above example, the SQL query exists as `prelim_meta_standard_query_with_pageseq.sql` in the `$QUERIES_DIR` directory.
 
@@ -118,7 +138,15 @@ This depends on your question. `prelim_meta_standard_query_with_pageseq.sql` sho
 the same as `standard_query` but is slightly cleaner and has some additional meta data. You'll have to 
 review the queries yourself to elucidate the precise differences. When you are more familiar you can write your own 
 custom queries. Prior to using custom queries in the pipeline you should write them with the standard BigQuery 
-Google compute tools so that you get an estimate of the cost of the query.  
+Google compute tools so that you get an estimate of the cost of the query. 
+
+**NB:** `stnd_taxon_ab.sql` extracts the variant value of a specific A/B test, as specified by the --ab_test_prefix
+command line argument. This argument is necessary for any SQL query containing `AB_DIMENSION_VALUE_PREFIX` (which is a
+placeholder in the query for an actual prefix). If, for example, you care about `RelatedLinksAATest:A` and
+`RelatedLinksAATest:B` as AB test values, then pass `RelatedLinksAATest` as the argument (our script adds the : in for
+you), and then the values of ABVariant in the resulting data will be A and B (we strip out the ab_test_prefix).
+
+replace `RelatedLinksAATest` with the test you care about in order to get useful figures.
 
 ## Managing expectations
 
@@ -135,6 +163,20 @@ Remember that the 200 code in the Debug level logging tells us that the request 
  was saved.
 
 # Converting raw big query data to processed_journey data
+
+## For A/B tests analysis
+Run `python src/data/preprocess_dataset.py filename` to preprocess the .csv.gz file called `filename` found in
+`data/raw_bq_extract`. A file with the same name will then be saved in `data/processed_journey` with all the extra
+columns you need - `['Occurrences', 'ABVariant', 'DeviceCategories', 'Sequence', 'Page_Event_List', 'Page_List',
+'PageSequence', 'Event_List', 'num_event_cats', 'Event_cats_agg', 'Event_cat_act_agg', 'Taxon_List', 'Taxon_Page_List',
+'Page_List_NL', 'Page_Seq_NL']`.
+
+Work in progress script at `src/data/preprocess_dataset_thinner.py` should create a dataframe with
+fewer columns - `['Occurrences', 'ABVariant', 'DeviceCategories', 'Sequence', 'Page_Event_List', 'Page_List',
+'PageSequence', 'Event_cat_act_agg']`, this will be quicker if you only need those columns.
+
+
+## For other uses
 
 This creates a csv where each row is a processed user journey and has session information rolled into it.   
 For example if 3 users went A -> B -> C on different devices, then this would be represented as a single row with a column containing a device dictionary (See table below: DeviceCategories).
