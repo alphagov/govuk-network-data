@@ -1,6 +1,6 @@
 SELECT
   COUNT(*) AS Occurrences,
-  REPLACE(ab_variant,"RelatedLinksAATest:","") as ABVariant,
+  REPLACE(ab_variant,"AB_DIMENSION_VALUE_PREFIX:","") as ABVariant,
   STRING_AGG(DeviceCategory, ",") AS DeviceCategories,
   Sequence
 FROM (
@@ -48,8 +48,9 @@ FROM (
       CROSS JOIN
         UNNEST(sessions.hits) AS hits ) )
   WHERE
-    DeviceCategory != "tablet" and ab_variant != "NULL"
-  GROUP BY
+    DeviceCategory != "tablet" and
+    ab_variant LIKE 'AB_DIMENSION_VALUE_PREFIX:%'
+    GROUP BY
     sessionId,
     Sequence,
     PageSequence,

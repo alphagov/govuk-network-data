@@ -3,6 +3,7 @@ import datetime
 import fnmatch
 import logging.config
 import os
+import sys
 import traceback
 
 import pandas as pd
@@ -89,16 +90,29 @@ def looped_query(query_from_file, date_range, exclude_dates, project_id, key_pat
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='BigQuery extractor module')
+    parser = argparse.ArgumentParser(
+        description='BigQuery extractor module',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('start_date', help='Start date in Y-m-d, eg 2018-12-31')
     parser.add_argument('end_date', help='End date in Y-m-d, eg 2018-12-31')
     parser.add_argument('filename', help='Naming convention for resulting dataframe file(s).')
-    parser.add_argument('query', help='Name of query to use, within queries directory.')
+    parser.add_argument('query', help='''
+        Name of query to use, within queries directory (specified by
+        environment variable QUERIES_DIR). The first file in query_dir that
+        contains a match for query string is used, this is based on
+        alphabetical order.
+        ''')
     parser.add_argument('dest_dir', default="", nargs="?",
                         help='Specialized destination directory for resulting dataframe file(s).')
     parser.add_argument('--standard', action='store_true', default=False,
                         help='Specify BigQuery dialect. Legacy default.')
     parser.add_argument('-q', '--quiet', action='store_true', default=False, help='Turn off debugging logging.')
+    parser.add_argument('--ab_test_prefix', help='''
+        For use with the stnd_taxon_ab query, prefix of the value in the AB
+        test custom dimension, the bit before the colon, not including it, for
+        example, if you care about values 'RelatedLinksAATest:A' and
+        'RelatedLinksAATest:B', pass 'RelatedLinksAATest' through this arg.
+        ''')
     args = parser.parse_args()
     if args.standard:
         dialect = "standard"
@@ -150,6 +164,16 @@ if __name__ == "__main__":
         if query_path is not None:
             logger.info("Specified query exists, running...")
             query = read_query(query_path)
+
+            if "AB_DIMENSION_VALUE_PREFIX" in query:
+                try:
+                    query = query.replace(
+                        "AB_DIMENSION_VALUE_PREFIX", args.ab_test_prefix)
+                except TypeError:
+                    logging.error(
+                        f"Tried to replace AB_DIMENSION_VALUE_PREFIX in query,"
+                        f" ab_test_prefix argument is {args.ab_test_prefix}")
+                    sys.exit()
             looped_query(query, date_list, [], ProjectID, key_file_path, dest_dir, filename, dialect)
     else:
         logger.info("Query failed, not enough info provided")
