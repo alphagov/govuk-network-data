@@ -188,6 +188,10 @@ Here's some definitions of the columns in the resulting dataframe:
 
 For help getting started analysing and visualising this type of data using R or Python,
  see our notebooks in `notebooks/eda`.
+
+## Interested in one specific page?
+See the notebook `notebooks/page_intra_journey_analysis` on how to read in a processed journey file as a pandas dataframe for analysis. 
+If your curious as to whether a page disrupts journeys there's a notebook with useful functions for this problem.
  
 ## Using processed journey data for A/B tests 
 See the [govuk_ab_analysis](https://github.com/ukgovdatascience/govuk_ab_analysis) repo for some scripts to do this analysis.
