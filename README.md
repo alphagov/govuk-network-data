@@ -214,7 +214,7 @@ Here's some definitions of the columns in the resulting dataframe:
 | Page_Seq_Occurences  | Number of times (sessions) the PageSequence was identified|
 | DeviceCategories  |  List of tuples (dictionary-like) where the key is the device (str) and the value is the number of sequences performed on each device (int) |
 | Dates |  List of tuples (dictionary-like) where the key is date (YYYYMMDD) and the value is the number of times the sequence occurred in that date (int) |
-| Page_Event_List | from Sequence -> list of tuples of (page url, event). Where it's a page hit, event==PAGE_NULL |
+| Page_Event_List | from Sequence -> list of tuples of (page url, event, [taxon]). Where it's a page hit, event==PAGE_NULL |
 | Page_List | List of urls from PageSequence|
 | PageSequence_internal |For debugging: will be dropped|
 | Event_List | list of tuples each containing (event category, event action)|
