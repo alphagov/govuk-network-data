@@ -25,21 +25,23 @@ Install the latest version of Python 3 using Homebrew; this should also install
 brew install python
 ```
 
-Add your newly-installed Python to PATH, and validate your Python 3 version has
+Add your newly-installed Python to PATH, and activate your changes. Then validate your Python 3 version has
 been installed.
 ```
 echo 'export PATH="/usr/local/opt/python/libexec/bin:$PATH"' >> ~/.bash_profile
+source ~/.bash_profile  # activates your changes; alternatively, restart your Terminal
 python --version  # as of Oct 2019, this should be Python 3.7.4 on Homebrew
 ```
 
-Use Homebrew to install `pyenv`, and its `pyenv-virtualenv` plugin, and add required
-lines to your `.bash_profile`.
+Use Homebrew to install `pyenv`, and its `pyenv-virtualenv` plugin, add required
+lines to your `.bash_profile`, then activate the changes.
 ```
 brew install pyenv
 brew install pyenv-virtual
 
 echo 'eval "$(pyenv init -)"' >> ~/.bash_profile
 echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bash_profile
+source ~/.bash_profile  # activates your changes; alternatively, restart your Terminal
 ```
 
 Create a new Python virtual environment running Python 3.6.9; we'll call this
