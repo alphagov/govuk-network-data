@@ -12,6 +12,6 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run:  pip install -r requirements.txt
       - run: cd ./src/data/
-      - run: python -m pytest -v tests/
+      - run: python -m pytest
       - run: cd ./src/features/
-      - run: python -m pytest -v tests/
+      - run: python -m pytest
