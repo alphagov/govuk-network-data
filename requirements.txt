@@ -51,7 +51,7 @@ msgpack==0.6.2
 multipledispatch==0.6.0
 nbconvert==5.4.0
 nbformat==4.4.0
-networkx==2.3
+networkx==2.6
 notebook==6.1.5
 numba==0.49.0
 numpy==1.16.3
