@@ -11,7 +11,7 @@ Click==7.0
 cloudpickle==1.2.2
 colorcet==2.0.2
 cycler==0.10.0
-dask==2.5.2
+dask==2021.10.0
 datashader==0.8.0
 datashape==0.5.2
 decorator==4.3.0
