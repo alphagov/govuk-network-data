@@ -11,7 +11,7 @@ Click==7.0
 cloudpickle==1.2.2
 colorcet==2.0.2
 cycler==0.10.0
-dask==2.5.2
+dask==2021.10.0
 datashader==0.8.0
 datashape==0.5.2
 decorator==4.3.0
@@ -35,7 +35,7 @@ ipython==7.0.1
 ipython-genutils==0.2.0
 ipywidgets==7.4.2
 jedi==0.13.1
-Jinja2==2.10.1
+Jinja2==2.11.3
 jsonschema==2.6.0
 jupyter==1.0.0
 jupyter-client==5.3.4
@@ -51,8 +51,8 @@ msgpack==0.6.2
 multipledispatch==0.6.0
 nbconvert==5.4.0
 nbformat==4.4.0
-networkx==2.3
-notebook==6.1.5
+networkx==2.6
+notebook==5.7.11
 numba==0.49.0
 numpy==1.16.3
 oauthlib==2.1.0
@@ -65,7 +65,7 @@ parso==0.3.1
 partd==1.0.0
 pexpect==4.6.0
 pickleshare==0.7.5
-Pillow==8.2.0
+Pillow==8.3.2
 pluggy==0.8.0
 prometheus-client==0.4.2
 prompt-toolkit==2.0.6
@@ -102,7 +102,7 @@ testpath==0.4.2
 toolz==0.10.0
 tornado==5.1.1
 traitlets==4.3.2
-urllib3==1.25.9
+urllib3==1.26.5
 wcwidth==0.1.7
 webencodings==0.5.1
 widgetsnbextension==3.4.2
