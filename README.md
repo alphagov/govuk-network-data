@@ -1,3 +1,6 @@
+# This repo has been archived
+We have archived this repository to make it read-only for all users and indicate that it's no longer actively maintained. You are welcome to fork it and develop the code further. This code was developed by data scientist at GDS, specifically the Data Labs team which is now known as Data Products.  
+
 # govuk-network-data
 > Making better use of BigQuery user journey data.
 
